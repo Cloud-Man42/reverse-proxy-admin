@@ -51,18 +51,10 @@ npm run build
 echo "==> Configuring environment"
 if [[ ! -f "${ENV_FILE}" ]]; then
   SECRET_KEY="$(openssl rand -hex 32)"
-  cat > "${ENV_FILE}" <<EOF
-SECRET_KEY=${SECRET_KEY}
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=CHANGE_ME_NOW
-CERTBOT_EMAIL=you@yourdomain.com
-ALLOWED_IPS=["127.0.0.1","::1","10.0.0.0/24"]
-DATABASE_URL=sqlite:////var/lib/reverse-proxy-admin/app.db
-USE_SUDO=true
-DEBUG=false
-EOF
+  cp "${APP_ROOT}/deploy/env.example" "${ENV_FILE}"
+  sed -i "s/^SECRET_KEY=.*/SECRET_KEY=${SECRET_KEY}/" "${ENV_FILE}"
   chmod 600 "${ENV_FILE}"
-  echo "Created ${ENV_FILE} - set ADMIN_PASSWORD before starting service."
+  echo "Created ${ENV_FILE} from deploy/env.example (default admin credentials — change after first login)."
 fi
 
 echo "==> Installing sudoers"
@@ -80,12 +72,7 @@ cp "${APP_ROOT}/deploy/systemd/nginx-admin.service" /etc/systemd/system/nginx-ad
 systemctl daemon-reload
 systemctl enable nginx-admin
 
-if [[ -f "${ENV_FILE}" ]] && grep -q "CHANGE_ME_NOW" "${ENV_FILE}"; then
-  echo "WARNING: ADMIN_PASSWORD is still CHANGE_ME_NOW. Edit ${ENV_FILE} then run:"
-  echo "  systemctl restart nginx-admin"
-else
-  systemctl restart nginx-admin
-fi
+systemctl restart nginx-admin
 
 echo "==> Installing admin UI nginx vhost (if missing)"
 if [[ ! -f /etc/nginx/sites-available/admin-ui.conf ]]; then
@@ -113,9 +100,14 @@ if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   ufw allow from 10.0.0.0/24 to any port 8443 proto tcp comment "Nginx Admin UI" || true
 fi
 
+DEFAULT_ADMIN_USERNAME="$(grep '^ADMIN_USERNAME=' "${ENV_FILE}" | cut -d= -f2- | tr -d '"')"
+DEFAULT_ADMIN_PASSWORD="$(grep '^ADMIN_PASSWORD=' "${ENV_FILE}" | cut -d= -f2- | tr -d '"')"
+
 echo
 echo "Deployment complete."
-echo "1. Set ADMIN_PASSWORD in ${ENV_FILE}"
-echo "2. Configure TLS in /etc/nginx/sites-available/admin-ui.conf"
-echo "3. systemctl restart nginx-admin && nginx -t && systemctl reload nginx"
-echo "4. Open https://<your-server-ip>:8443 from your internal network"
+echo "Default admin login (change immediately after first login):"
+echo "  Username: ${DEFAULT_ADMIN_USERNAME}"
+echo "  Password: ${DEFAULT_ADMIN_PASSWORD}"
+echo "Change password in Admin UI → Users, or edit ${ENV_FILE} before first start on a new server."
+echo "Configure TLS in /etc/nginx/sites-available/admin-ui.conf if needed."
+echo "Open https://<your-server-ip>:8443 from your internal network"

@@ -38,7 +38,16 @@ sudo bash deploy/install-from-repo.sh
 
 This runs `deploy/install-prerequisites.sh` first. That script is **idempotent** and only installs missing packages such as Nginx, Certbot, Python venv tooling, Node.js, `htpasswd`, OpenSSL, and UFW.
 
-Then configure the admin password and network settings:
+After install, log in with the **default credentials** (change immediately):
+
+| Field | Default |
+|-------|---------|
+| Username | `admin` |
+| Password | `ChangeMeAfterInstall!` |
+
+Change the password under **Admin UI → Users** (edit the admin user). On a fresh server you can also set `ADMIN_PASSWORD` in `/etc/nginx-admin/env` before the first service start.
+
+Adjust network settings if needed:
 
 ```bash
 sudo nano /etc/nginx-admin/env
@@ -100,9 +109,8 @@ sudo nano /etc/nginx-admin/env
 
 Set at minimum:
 
-- `SECRET_KEY` (generate with `openssl rand -hex 32`)
-- `ADMIN_USERNAME`
-- `ADMIN_PASSWORD` (never commit this value)
+- `SECRET_KEY` (generate with `openssl rand -hex 32`; `install.sh` generates this automatically)
+- `ADMIN_USERNAME` / `ADMIN_PASSWORD` — defaults are `admin` / `ChangeMeAfterInstall!` in `deploy/env.example`; change after first login
 - `CERTBOT_EMAIL`
 - `ALLOWED_IPS` (your internal subnet, e.g. `10.0.0.0/24`)
 
