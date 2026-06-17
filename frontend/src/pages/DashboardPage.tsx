@@ -1,14 +1,30 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../api/client";
+import { ApiError, api } from "../api/client";
 import { Card } from "../components/Card";
 import { NetworkMap } from "../components/NetworkMap";
 import { StatusBadge } from "../components/StatusBadge";
 
 export function DashboardPage() {
-  const { data, isLoading } = useQuery({ queryKey: ["dashboard"], queryFn: api.dashboard });
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: api.dashboard,
+    retry: 1,
+  });
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return <p>Loading dashboard...</p>;
+  }
+
+  if (isError || !data) {
+    const message = error instanceof ApiError ? error.message : "Could not load dashboard data.";
+    return (
+      <div className="space-y-3">
+        <p className="text-amber-200">{message}</p>
+        <button type="button" className="rounded-lg bg-white/10 px-4 py-2 text-sm" onClick={() => refetch()}>
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (

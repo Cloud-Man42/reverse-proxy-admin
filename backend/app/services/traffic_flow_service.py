@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.config import Settings
 from app.schemas import ProxyAppBase, TrafficFlowCheck, TrafficFlowTestResult
-from app.services.cert_paths import certificate_exists, certificate_exists_message
+from app.services.cert_paths import certificate_exists, certificate_exists_message, _sudo_path_is_file
 from app.services.nginx_writer import NginxWriter, PROXY_DEBUG_LOG_FORMAT
 
 
@@ -24,6 +24,7 @@ class TrafficFlowService:
         return list(args)
 
     def test_upstream(self, host: str, port: int) -> TrafficFlowCheck:
+        host = host.strip()
         try:
             with socket.create_connection((host, port), timeout=5):
                 return TrafficFlowCheck(
@@ -86,9 +87,21 @@ class TrafficFlowService:
 
         domain = app.domains[0]
         if certificate_exists(self.settings, domain):
-            return rendered
+            return self._sanitize_ssl_includes_for_syntax_test(rendered)
 
         return self._rendered_config_for_syntax_test(rendered, test_dir, app)
+
+    def _sanitize_ssl_includes_for_syntax_test(self, rendered: str) -> str:
+        options = Path("/etc/letsencrypt/options-ssl-nginx.conf")
+        dhparam = Path("/etc/letsencrypt/ssl-dhparams.pem")
+        if not _sudo_path_is_file(self.settings, options):
+            rendered = rendered.replace(
+                "include /etc/letsencrypt/options-ssl-nginx.conf;",
+                "ssl_protocols TLSv1.2 TLSv1.3;",
+            )
+        if not _sudo_path_is_file(self.settings, dhparam):
+            rendered = rendered.replace("ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;", "")
+        return rendered
 
     def _isolated_nginx_conf(self, test_dir: Path, site_path: Path) -> str:
         pid_path = test_dir / "nginx.pid"
@@ -174,6 +187,7 @@ class TrafficFlowService:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=30,
             )
             output = (result.stdout or "") + (result.stderr or "")
             if result.returncode == 0:
@@ -186,6 +200,12 @@ class TrafficFlowService:
                 name="nginx_syntax",
                 success=False,
                 message=output.strip() or "Nginx syntax test failed",
+            )
+        except subprocess.TimeoutExpired:
+            return TrafficFlowCheck(
+                name="nginx_syntax",
+                success=False,
+                message="Nginx syntax test timed out after 30 seconds",
             )
         except Exception as exc:
             return TrafficFlowCheck(

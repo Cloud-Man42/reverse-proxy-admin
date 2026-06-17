@@ -1,3 +1,4 @@
+from collections import deque
 from pathlib import Path
 from typing import List, Optional
 
@@ -16,8 +17,11 @@ class LogReader:
         ensure_path_allowed(path, self.settings.allowed_read_paths())
         if not path.exists():
             return []
-        content = path.read_text(encoding="utf-8", errors="replace").splitlines()
-        return content[-lines:]
+        try:
+            with path.open("r", encoding="utf-8", errors="replace") as handle:
+                return list(deque(handle, maxlen=max(lines, 1)))
+        except OSError:
+            return []
 
     def read_error_log(self, lines: int = 200) -> List[str]:
         return self._tail(self.settings.nginx_error_log, lines=lines)

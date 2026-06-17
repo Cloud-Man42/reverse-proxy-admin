@@ -1,8 +1,11 @@
 import re
 import subprocess
+from collections import deque
 from pathlib import Path
 
 from app.config import Settings
+
+SUBPROCESS_TIMEOUT_SECONDS = 15
 
 DOMAIN_LINE_RE = re.compile(r"^\s*Domains:\s*(.+)$", re.IGNORECASE)
 CERT_NAME_LINE_RE = re.compile(r"^\s*Certificate Name:\s*(.+)$", re.IGNORECASE)
@@ -31,15 +34,23 @@ def build_certbot_cmd(settings: Settings, *args: str) -> list[str]:
     return cmd
 
 
-def run_certbot_certificates(settings: Settings) -> tuple[int, str]:
-    result = subprocess.run(
-        build_certbot_cmd(settings, "certificates"),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+def _run_subprocess(cmd: list[str], timeout: int = SUBPROCESS_TIMEOUT_SECONDS) -> tuple[int, str]:
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return 124, "Command timed out"
     output = (result.stdout or "") + (result.stderr or "")
     return result.returncode, output
+
+
+def run_certbot_certificates(settings: Settings) -> tuple[int, str]:
+    return _run_subprocess(build_certbot_cmd(settings, "certificates"))
 
 
 def _sudo_path_is_file(settings: Settings, path: Path) -> bool:
@@ -48,13 +59,8 @@ def _sudo_path_is_file(settings: Settings, path: Path) -> bool:
             return path.is_file()
         except OSError:
             return False
-    result = subprocess.run(
-        ["sudo", "/usr/bin/test", "-f", str(path)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return result.returncode == 0
+    returncode, _ = _run_subprocess(["sudo", "/usr/bin/test", "-f", str(path)], timeout=5)
+    return returncode == 0
 
 
 def domain_has_certificate_in_output(domain: str, output: str) -> bool:
@@ -91,24 +97,19 @@ def certificate_exists(settings: Settings, domain: str) -> bool:
         return False
 
     returncode, output = run_certbot_certificates(settings)
+    if returncode == 124:
+        return False
     if "No certificates found" in output:
         return False
     if domain_has_certificate_in_output(domain, output):
         return True
 
-    # Fallback: list certs from the system config dir only (no custom work/logs dirs).
-    if settings.use_sudo:
-        minimal = subprocess.run(
-            ["sudo", "/usr/bin/certbot", "certificates", "--config-dir", str(settings.certbot_config_dir)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        minimal_output = (minimal.stdout or "") + (minimal.stderr or "")
-        if domain_has_certificate_in_output(domain, minimal_output):
-            return True
-
-    return False
+    returncode, minimal_output = _run_subprocess(
+        ["sudo", "/usr/bin/certbot", "certificates", "--config-dir", str(settings.certbot_config_dir)]
+    )
+    if returncode == 124:
+        return False
+    return domain_has_certificate_in_output(domain, minimal_output)
 
 
 def certificate_exists_message(settings: Settings, domain: str) -> tuple[bool, str]:
@@ -117,10 +118,13 @@ def certificate_exists_message(settings: Settings, domain: str) -> tuple[bool, s
         return True, f"Certificate found for {domain}"
 
     if settings.use_sudo:
-        returncode, output = run_certbot_certificates(settings)
         readable = _sudo_path_is_file(settings, cert_path)
         key_readable = _sudo_path_is_file(settings, key_path)
-        detail = output.strip() or f"certbot certificates exited with code {returncode}"
+        returncode, output = run_certbot_certificates(settings)
+        if returncode == 124:
+            detail = "certbot certificates timed out"
+        else:
+            detail = output.strip() or f"certbot certificates exited with code {returncode}"
         return (
             False,
             "No certificate for "

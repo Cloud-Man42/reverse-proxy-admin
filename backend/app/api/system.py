@@ -30,8 +30,14 @@ async def dashboard(
     active = sum(1 for item in proxies if item.enabled)
     inactive = len(proxies) - active
     nginx_active, _ = NginxOps(settings).status()
-    expiring = sum(1 for cert in CertbotOps(settings).list_certificates() if cert.status == "expiring")
-    recent_errors = LogReader(settings).read_error_log(lines=10)
+    try:
+        expiring = sum(1 for cert in CertbotOps(settings).list_certificates() if cert.status == "expiring")
+    except Exception:
+        expiring = 0
+    try:
+        recent_errors = LogReader(settings).read_error_log(lines=10)
+    except Exception:
+        recent_errors = []
     return DashboardStats(
         active_proxies=active,
         inactive_proxies=inactive,
