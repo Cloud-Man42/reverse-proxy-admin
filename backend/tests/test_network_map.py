@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from app.config import Settings
-from app.schemas import ProxyAppResponse
+from app.schemas import ProxyAppResponse, TargetProtocol
 from app.services.network_map_service import NetworkMapService
 
 
@@ -20,12 +20,20 @@ def settings(tmp_path) -> Settings:
 
 
 def _sample_proxy(**overrides) -> ProxyAppResponse:
+    route = {
+        "path_prefix": "/",
+        "target_protocol": TargetProtocol.HTTP,
+        "target_host": "10.0.0.5",
+        "target_port": 8080,
+        "websocket_enabled": False,
+    }
     data = {
         "id": "myapp",
         "name": "myapp",
         "config_file": "myapp.conf",
         "domains": ["example.com"],
-        "target_protocol": "http",
+        "routes": [route],
+        "target_protocol": TargetProtocol.HTTP,
         "target_host": "10.0.0.5",
         "target_port": 8080,
         "websocket_enabled": False,

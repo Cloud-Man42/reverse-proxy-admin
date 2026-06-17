@@ -6,7 +6,8 @@ from pathlib import Path
 
 from app.config import Settings
 from app.schemas import ProxyAppBase, TrafficFlowCheck, TrafficFlowTestResult
-from app.services.nginx_writer import NginxWriter
+from app.services.cert_paths import certificate_exists_message
+from app.services.nginx_writer import NginxWriter, PROXY_DEBUG_LOG_FORMAT
 
 
 class TrafficFlowService:
@@ -36,6 +37,31 @@ class TrafficFlowService:
                 message=f"Cannot reach upstream {host}:{port}: {exc}",
             )
 
+    def test_upstream_routes(self, app: ProxyAppBase) -> TrafficFlowCheck:
+        failures: list[str] = []
+        for route in app.routes:
+            check = self.test_upstream(route.target_host, route.target_port)
+            if not check.success:
+                failures.append(f"{route.path_prefix} -> {route.target_host}:{route.target_port}")
+        if failures:
+            return TrafficFlowCheck(
+                name="upstream_connectivity",
+                success=False,
+                message="Cannot reach upstream(s): " + "; ".join(failures),
+            )
+        if len(app.routes) == 1:
+            route = app.routes[0]
+            return TrafficFlowCheck(
+                name="upstream_connectivity",
+                success=True,
+                message=f"Upstream {route.target_host}:{route.target_port} is reachable from reverse proxy",
+            )
+        return TrafficFlowCheck(
+            name="upstream_connectivity",
+            success=True,
+            message=f"All {len(app.routes)} upstream route(s) are reachable from reverse proxy",
+        )
+
     def test_ssl_readiness(self, app: ProxyAppBase) -> TrafficFlowCheck:
         if not app.force_https:
             return TrafficFlowCheck(
@@ -44,18 +70,8 @@ class TrafficFlowService:
                 message="HTTPS redirect not enabled - SSL check skipped",
             )
         domain = app.domains[0]
-        cert_path = self.settings.letsencrypt_live / domain / "fullchain.pem"
-        if cert_path.exists():
-            return TrafficFlowCheck(
-                name="ssl_readiness",
-                success=True,
-                message=f"Certificate found for {domain}",
-            )
-        return TrafficFlowCheck(
-            name="ssl_readiness",
-            success=False,
-            message=f"No certificate at {cert_path}. Issue cert before enabling force_https.",
-        )
+        ok, message = certificate_exists_message(self.settings, domain)
+        return TrafficFlowCheck(name="ssl_readiness", success=ok, message=message)
 
     def _isolated_nginx_conf(self, test_dir: Path, site_path: Path) -> str:
         pid_path = test_dir / "nginx.pid"
@@ -67,6 +83,7 @@ class TrafficFlowService:
             f"error_log {error_log} warn;\n"
             f"events {{ worker_connections 1024; }}\n"
             f"http {{\n"
+            f"    {PROXY_DEBUG_LOG_FORMAT}\n"
             f"    client_body_temp_path {test_dir / 'body'};\n"
             f"    proxy_temp_path {test_dir / 'proxy'};\n"
             f"    fastcgi_temp_path {test_dir / 'fastcgi'};\n"
@@ -74,6 +91,44 @@ class TrafficFlowService:
             f"    scgi_temp_path {test_dir / 'scgi'};\n"
             f"    include {site_path};\n"
             f"}}\n"
+        )
+
+    def _rendered_config_for_syntax_test(self, rendered: str, test_dir: Path, app: ProxyAppBase) -> str:
+        domain = app.domains[0]
+        cert_path = test_dir / "syntax-test.crt"
+        key_path = test_dir / "syntax-test.key"
+        openssl_result = subprocess.run(
+            [
+                "/usr/bin/openssl",
+                "req",
+                "-x509",
+                "-nodes",
+                "-newkey",
+                "rsa:2048",
+                "-keyout",
+                str(key_path),
+                "-out",
+                str(cert_path),
+                "-days",
+                "1",
+                "-subj",
+                f"/CN={domain}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if openssl_result.returncode != 0 or not cert_path.is_file() or not key_path.is_file():
+            raise RuntimeError(
+                (openssl_result.stderr or openssl_result.stdout or "openssl failed to create temporary certificate").strip()
+            )
+        live_cert = f"/etc/letsencrypt/live/{domain}/fullchain.pem"
+        live_key = f"/etc/letsencrypt/live/{domain}/privkey.pem"
+        return (
+            rendered.replace(live_cert, str(cert_path))
+            .replace(live_key, str(key_path))
+            .replace("include /etc/letsencrypt/options-ssl-nginx.conf;", "ssl_protocols TLSv1.2 TLSv1.3;")
+            .replace("ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;", "")
         )
 
     def test_config_syntax(self, app: ProxyAppBase) -> TrafficFlowCheck:
@@ -87,6 +142,8 @@ class TrafficFlowService:
 
         try:
             rendered = self.writer.render_config(app)
+            if app.force_https:
+                rendered = self._rendered_config_for_syntax_test(rendered, test_dir, app)
             site_path.write_text(rendered, encoding="utf-8")
             nginx_conf.write_text(self._isolated_nginx_conf(test_dir, site_path), encoding="utf-8")
             result = subprocess.run(
@@ -117,21 +174,25 @@ class TrafficFlowService:
             shutil.rmtree(test_dir, ignore_errors=True)
 
     def test_traffic_flow(self, app: ProxyAppBase) -> TrafficFlowTestResult:
+        route_summary = ", ".join(
+            f"{route.path_prefix} -> {route.target_protocol.value}://{route.target_host}:{route.target_port}"
+            for route in app.routes
+        )
         checks = [
             TrafficFlowCheck(
                 name="input_validation",
                 success=True,
-                message=f"Domain(s) {', '.join(app.domains)} and upstream validated",
+                message=f"Domain(s) {', '.join(app.domains)} with routes: {route_summary}",
             ),
             self.test_config_syntax(app),
-            self.test_upstream(app.target_host, app.target_port),
+            self.test_upstream_routes(app),
             self.test_ssl_readiness(app),
             TrafficFlowCheck(
                 name="traffic_path",
                 success=True,
                 message=(
                     f"Expected flow: Internet → Firewall → Nginx ({self.settings.server_public_ip}) "
-                    f"→ {app.domains[0]} → {app.target_protocol.value}://{app.target_host}:{app.target_port}"
+                    f"→ {app.domains[0]} → [{route_summary}]"
                 ),
             ),
         ]

@@ -9,6 +9,9 @@ class LogReader:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
+    def read_lines(self, path: Path, lines: int = 200) -> List[str]:
+        return self._tail(path, lines=lines)
+
     def _tail(self, path: Path, lines: int = 200) -> List[str]:
         ensure_path_allowed(path, self.settings.allowed_read_paths())
         if not path.exists():

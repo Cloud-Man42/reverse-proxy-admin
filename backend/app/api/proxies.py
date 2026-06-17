@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
@@ -12,6 +12,7 @@ from app.schemas import (
     ProxyAppCreate,
     ProxyAppResponse,
     ProxyAppUpdate,
+    TrafficDebugResponse,
     TrafficFlowTestResult,
 )
 from app.security.ip_allowlist import _client_ip
@@ -20,6 +21,7 @@ from app.services.audit_service import log_audit
 from app.services.nginx_ops import NginxOps
 from app.services.proxy_service import ProxyService
 from app.services.traffic_flow_service import TrafficFlowService
+from app.services.traffic_debug_service import TrafficDebugService
 
 router = APIRouter(prefix="/proxies", tags=["proxies"])
 
@@ -194,10 +196,7 @@ async def test_flow_existing(
     payload = ProxyAppUpdate(
         name=proxy.name,
         domains=proxy.domains,
-        target_protocol=proxy.target_protocol,
-        target_host=proxy.target_host,
-        target_port=proxy.target_port,
-        websocket_enabled=proxy.websocket_enabled,
+        routes=proxy.routes,
         custom_headers=proxy.custom_headers,
         max_body_size=proxy.max_body_size,
         basic_auth_enabled=proxy.basic_auth_enabled,
@@ -205,3 +204,16 @@ async def test_flow_existing(
         enabled=proxy.enabled,
     )
     return TrafficFlowService(settings).test_traffic_flow(payload)
+
+
+@router.get("/{proxy_id}/traffic-debug", response_model=TrafficDebugResponse)
+async def proxy_traffic_debug(
+    proxy_id: str,
+    lines: int = Query(default=100, ge=1, le=500),
+    service: ProxyService = Depends(get_service),
+    settings: Settings = Depends(get_settings),
+    _user: User = Depends(require_permission(Permission.READ)),
+) -> TrafficDebugResponse:
+    if not service.get_proxy(proxy_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proxy not found")
+    return TrafficDebugService(settings).read_proxy_traffic(proxy_id, lines=lines)

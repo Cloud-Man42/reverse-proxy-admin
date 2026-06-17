@@ -7,15 +7,22 @@ from typing import Callable, Optional
 from jinja2 import Environment, StrictUndefined
 
 from app.config import Settings
-from app.schemas import ProxyAppBase
+from app.schemas import ProxyAppBase, ProxyRoute
 from app.services.file_lock import file_lock
 from app.services.path_guard import ensure_path_allowed, safe_join
+
+
+PROXY_DEBUG_LOG_FORMAT = (
+    "log_format proxy_debug "
+    "'$remote_addr|$time_local|$host|$request|$status|$body_bytes_sent|$http_x_forwarded_for|$http_user_agent';"
+)
 
 
 CONFIG_TEMPLATE = """{% if app.force_https -%}
 server {
     listen 80;
     server_name {{ app.domains | join(' ') }};
+    access_log /var/log/nginx/proxy-{{ app.name }}.log proxy_debug;
     return 301 https://$host$request_uri;
 }
 
@@ -31,6 +38,7 @@ server {
     listen 80;
 {% endif -%}
     server_name {{ app.domains | join(' ') }};
+    access_log /var/log/nginx/proxy-{{ app.name }}.log proxy_debug;
 
 {% if app.max_body_size -%}
     client_max_body_size {{ app.max_body_size }};
@@ -39,14 +47,15 @@ server {
     auth_basic "Restricted";
     auth_basic_user_file {{ htpasswd_path }};
 {% endif -%}
-    location / {
-        proxy_pass {{ upstream }};
+{% for route in routes -%}
+    location {{ route.location }} {
+        proxy_pass {{ route.proxy_pass }};
 
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-{% if app.websocket_enabled -%}
+{% if route.websocket_enabled -%}
 
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -56,6 +65,7 @@ server {
         proxy_set_header {{ header.name }} {{ header.value }};
 {% endfor -%}
     }
+{% endfor -%}
 }
 """
 
@@ -99,11 +109,43 @@ class NginxWriter:
             for_write=True,
         )
 
+    @staticmethod
+    def route_upstream(route: ProxyRoute) -> str:
+        return f"{route.target_protocol.value}://{route.target_host}:{route.target_port}"
+
+    @staticmethod
+    def route_location_and_pass(route: ProxyRoute) -> tuple[str, str]:
+        upstream = NginxWriter.route_upstream(route)
+        if route.path_prefix == "/":
+            return "/", upstream
+        return f"{route.path_prefix}/", f"{upstream}/"
+
+    def render_routes(self, app: ProxyAppBase) -> list[dict]:
+        rendered: list[dict] = []
+        sorted_routes = sorted(
+            app.routes,
+            key=lambda route: len(route.path_prefix),
+            reverse=True,
+        )
+        for route in sorted_routes:
+            location, proxy_pass = self.route_location_and_pass(route)
+            rendered.append(
+                {
+                    "location": location,
+                    "proxy_pass": proxy_pass,
+                    "websocket_enabled": route.websocket_enabled,
+                }
+            )
+        return rendered
+
     def render_config(self, app: ProxyAppBase) -> str:
-        upstream = f"{app.target_protocol.value}://{app.target_host}:{app.target_port}"
         htpasswd_path = self.settings.htpasswd_dir / f"{app.name}.htpasswd"
         template = self.env.from_string(CONFIG_TEMPLATE)
-        return template.render(app=app, upstream=upstream, htpasswd_path=str(htpasswd_path))
+        return template.render(
+            app=app,
+            routes=self.render_routes(app),
+            htpasswd_path=str(htpasswd_path),
+        )
 
     def write_htpasswd(self, app: ProxyAppBase) -> None:
         if not app.basic_auth_enabled:

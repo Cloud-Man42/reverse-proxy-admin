@@ -196,10 +196,22 @@ npm run dev
 
 ### Tests
 
+Backend unit tests:
+
 ```bash
 cd backend
 pytest
 ```
+
+Frontend unit tests:
+
+```bash
+cd frontend
+npm install
+npm test
+```
+
+CI runs both suites on every push to `master` and on pull requests via `.github/workflows/test.yml`.
 
 ## Backup and rollback
 

@@ -4,9 +4,11 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { Card } from "../components/Card";
 import { StatusBadge } from "../components/StatusBadge";
+import { TrafficDebugPanel } from "../components/TrafficDebugPanel";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
-import { ProxyFormData, TrafficFlowTestResult } from "../types";
+import { toPayload } from "../lib/proxyPayload";
+import { ProxyFormData, ProxyRouteFormData, TrafficFlowTestResult } from "../types";
 
 const FLOW_CHECK_LABELS: Record<string, string> = {
   input_validation: "Input validation",
@@ -16,13 +18,18 @@ const FLOW_CHECK_LABELS: Record<string, string> = {
   traffic_path: "Traffic path",
 };
 
-const emptyForm: ProxyFormData = {
-  name: "",
-  domains: "",
+const emptyRoute = (): ProxyRouteFormData => ({
+  path_prefix: "/",
   target_protocol: "http",
   target_host: "",
   target_port: 8080,
   websocket_enabled: false,
+});
+
+const emptyForm: ProxyFormData = {
+  name: "",
+  domains: "",
+  routes: [emptyRoute()],
   custom_headers: [],
   max_body_size: "",
   basic_auth_enabled: false,
@@ -31,24 +38,6 @@ const emptyForm: ProxyFormData = {
   force_https: false,
   enabled: true,
 };
-
-function toPayload(form: ProxyFormData) {
-  return {
-    name: form.name,
-    domains: form.domains.split(",").map((d) => d.trim()).filter(Boolean),
-    target_protocol: form.target_protocol,
-    target_host: form.target_host,
-    target_port: Number(form.target_port),
-    websocket_enabled: form.websocket_enabled,
-    custom_headers: form.custom_headers,
-    max_body_size: form.max_body_size || null,
-    basic_auth_enabled: form.basic_auth_enabled,
-    basic_auth_username: form.basic_auth_username || null,
-    basic_auth_password: form.basic_auth_password || null,
-    force_https: form.force_https,
-    enabled: form.enabled,
-  };
-}
 
 export function ProxyFormPage() {
   const { id } = useParams();
@@ -72,10 +61,15 @@ export function ProxyFormPage() {
       setForm({
         name: data.name,
         domains: data.domains.join(", "),
-        target_protocol: data.target_protocol,
-        target_host: data.target_host,
-        target_port: data.target_port,
-        websocket_enabled: data.websocket_enabled,
+        routes: data.routes.length
+          ? data.routes.map((route) => ({
+              path_prefix: route.path_prefix,
+              target_protocol: route.target_protocol,
+              target_host: route.target_host,
+              target_port: route.target_port,
+              websocket_enabled: route.websocket_enabled,
+            }))
+          : [emptyRoute()],
         custom_headers: data.custom_headers,
         max_body_size: data.max_body_size || "",
         basic_auth_enabled: data.basic_auth_enabled,
@@ -128,6 +122,22 @@ export function ProxyFormPage() {
   const update = <K extends keyof ProxyFormData>(key: K, value: ProxyFormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  const updateRoute = <K extends keyof ProxyRouteFormData>(index: number, key: K, value: ProxyRouteFormData[K]) =>
+    setForm((prev) => ({
+      ...prev,
+      routes: prev.routes.map((route, routeIndex) => (routeIndex === index ? { ...route, [key]: value } : route)),
+    }));
+
+  const addRoute = () => update("routes", [...form.routes, emptyRoute()]);
+
+  const removeRoute = (index: number) => {
+    if (form.routes.length <= 1) return;
+    update(
+      "routes",
+      form.routes.filter((_, routeIndex) => routeIndex !== index),
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -147,39 +157,96 @@ export function ProxyFormPage() {
             <label className="mb-1 block text-sm">Domains (comma separated)</label>
             <input value={form.domains} onChange={(e) => update("domains", e.target.value)} required />
           </div>
-          <div>
-            <label className="mb-1 block text-sm">Target protocol</label>
-            <select value={form.target_protocol} onChange={(e) => update("target_protocol", e.target.value as "http" | "https")}>
-              <option value="http">http</option>
-              <option value="https">https</option>
-            </select>
+
+          <div className="md:col-span-2">
+            <div className="mb-2 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium">Upstream routes</h3>
+                <p className="text-xs text-white/60">
+                  Map path prefixes on the same domain to different ports on one or more backend hosts.
+                </p>
+              </div>
+              <button type="button" className="rounded-lg bg-white/10 px-3 py-1 text-sm" onClick={addRoute}>
+                Add route
+              </button>
+            </div>
+            <div className="space-y-3">
+              {form.routes.map((route, index) => (
+                <div key={index} className="grid gap-3 rounded-lg border border-white/10 bg-black/20 p-3 md:grid-cols-6">
+                  <div>
+                    <label className="mb-1 block text-xs">Path prefix</label>
+                    <input
+                      value={route.path_prefix}
+                      onChange={(e) => updateRoute(index, "path_prefix", e.target.value)}
+                      placeholder="/ or /api"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs">Protocol</label>
+                    <select
+                      value={route.target_protocol}
+                      onChange={(e) => updateRoute(index, "target_protocol", e.target.value as "http" | "https")}
+                    >
+                      <option value="http">http</option>
+                      <option value="https">https</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs">Target host</label>
+                    <input
+                      value={route.target_host}
+                      onChange={(e) => updateRoute(index, "target_host", e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs">Target port</label>
+                    <input
+                      type="number"
+                      value={route.target_port}
+                      onChange={(e) => updateRoute(index, "target_port", Number(e.target.value))}
+                      required
+                    />
+                  </div>
+                  <label className="flex items-end gap-2 pb-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={route.websocket_enabled}
+                      onChange={(e) => updateRoute(index, "websocket_enabled", e.target.checked)}
+                    />
+                    WebSocket
+                  </label>
+                  <div className="flex items-end justify-end pb-1">
+                    <button
+                      type="button"
+                      className="rounded bg-red-600/70 px-2 py-1 text-xs text-white disabled:opacity-40"
+                      onClick={() => removeRoute(index)}
+                      disabled={form.routes.length <= 1}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div>
-            <label className="mb-1 block text-sm">Target host/IP</label>
-            <input value={form.target_host} onChange={(e) => update("target_host", e.target.value)} required />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm">Target port</label>
-            <input
-              type="number"
-              value={form.target_port}
-              onChange={(e) => update("target_port", Number(e.target.value))}
-              required
-            />
-          </div>
+
           <div>
             <label className="mb-1 block text-sm">Max body size</label>
             <input value={form.max_body_size} onChange={(e) => update("max_body_size", e.target.value)} placeholder="50m" />
           </div>
 
           <label className="flex items-center gap-2 text-sm md:col-span-2">
-            <input type="checkbox" checked={form.websocket_enabled} onChange={(e) => update("websocket_enabled", e.target.checked)} />
-            WebSocket support
-          </label>
-          <label className="flex items-center gap-2 text-sm md:col-span-2">
             <input type="checkbox" checked={form.force_https} onChange={(e) => update("force_https", e.target.checked)} />
             Redirect HTTP to HTTPS
           </label>
+          {form.force_https ? (
+            <p className="text-sm text-amber-200 md:col-span-2">
+              Requires a valid Let&apos;s Encrypt certificate for the domain. Issue the certificate on the Certificates page
+              before saving with this option enabled.
+            </p>
+          ) : null}
           <label className="flex items-center gap-2 text-sm md:col-span-2">
             <input type="checkbox" checked={form.enabled} onChange={(e) => update("enabled", e.target.checked)} />
             Enabled
@@ -237,6 +304,15 @@ export function ProxyFormPage() {
               </div>
             ))}
           </div>
+        </Card>
+      ) : null}
+
+      {isEdit && id && canRead ? (
+        <Card>
+          <TrafficDebugPanel
+            proxyId={id}
+            domains={form.domains.split(",").map((d) => d.trim()).filter(Boolean)}
+          />
         </Card>
       ) : null}
     </div>

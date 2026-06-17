@@ -1,6 +1,7 @@
 import pytest
 
 from app.security.validators import (
+    validate_certbot_email,
     validate_domain,
     validate_ip,
     validate_port,
@@ -36,3 +37,28 @@ def test_validate_slug():
     assert validate_slug("my-app-1") == "my-app-1"
     with pytest.raises(ValueError):
         validate_slug("Bad Name")
+
+
+def test_validate_certbot_email_accepts_real_address():
+    assert validate_certbot_email("Admin@Inacloud.se") == "admin@inacloud.se"
+
+
+def test_validate_certbot_email_rejects_placeholder():
+    with pytest.raises(ValueError, match="placeholder"):
+        validate_certbot_email("admin@example.com")
+
+
+def test_validate_path_prefix():
+    from app.security.validators import validate_path_prefix
+
+    assert validate_path_prefix("/") == "/"
+    assert validate_path_prefix("/api/") == "/api"
+    with pytest.raises(ValueError):
+        validate_path_prefix("api")
+
+
+def test_validate_header_name_rejects_injection():
+    from app.security.validators import validate_header_name
+
+    with pytest.raises(ValueError):
+        validate_header_name("X-Injected; rm -rf /")

@@ -58,7 +58,7 @@ async def enforce_ip_allowlist(request: Request, call_next):
     if request.url.path.startswith("/api/auth/login") or request.method == "OPTIONS":
         return await call_next(request)
     if request.url.path.startswith("/api/"):
-        await ip_allowlist_middleware(request, settings)
+        await ip_allowlist_middleware(request, get_settings())
     return await call_next(request)
 
 

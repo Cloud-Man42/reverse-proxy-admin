@@ -16,7 +16,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers || {});
   if (!headers.has("Content-Type") && options.body) {
     headers.set("Content-Type", "application/json");
@@ -86,6 +86,8 @@ export const api = {
     }),
   testFlowProxy: (id: string) =>
     request<import("../types").TrafficFlowTestResult>(`/api/proxies/${id}/test-flow`, { method: "POST" }),
+  proxyTrafficDebug: (id: string, lines = 100) =>
+    request<import("../types").TrafficDebugResponse>(`/api/proxies/${id}/traffic-debug?lines=${lines}`),
   listUsers: () => request<import("../types").UserAccount[]>("/api/users"),
   createUser: (payload: unknown) =>
     request<import("../types").UserAccount>("/api/users", { method: "POST", body: JSON.stringify(payload) }),
@@ -93,6 +95,7 @@ export const api = {
     request<import("../types").UserAccount>(`/api/users/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   deleteUser: (id: number) => request<import("../types").MessageResponse>(`/api/users/${id}`, { method: "DELETE" }),
   listCertificates: () => request<import("../types").Certificate[]>("/api/certificates"),
+  certificateSettings: () => request<import("../types").CertificateSettings>("/api/certificates/settings"),
   issueCertificate: (domain: string, email?: string) =>
     request<import("../types").MessageResponse>("/api/certificates", {
       method: "POST",

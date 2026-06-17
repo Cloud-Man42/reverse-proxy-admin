@@ -1,0 +1,12 @@
+---
+description: Frontend React testing conventions
+globs: frontend/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Frontend testing
+
+- Use Vitest and Testing Library; avoid testing implementation details.
+- Mock `fetch` or the `api` client at module boundaries.
+- Use helpers from `frontend/src/test/test-utils.tsx` when components need providers.
+- Prefer testing extracted pure functions (for example `src/lib/proxyPayload.ts`) for form mapping logic.

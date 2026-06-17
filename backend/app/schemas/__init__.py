@@ -2,9 +2,18 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.security.validators import DomainStr, IpStr, PortInt, SlugStr, validate_header_name, validate_header_value
+from app.security.validators import (
+    CertbotEmailStr,
+    DomainStr,
+    IpStr,
+    PathPrefixStr,
+    PortInt,
+    SlugStr,
+    validate_header_name,
+    validate_header_value,
+)
 
 
 class TargetProtocol(str, Enum):
@@ -27,13 +36,18 @@ class CustomHeader(BaseModel):
         return validate_header_value(value)
 
 
-class ProxyAppBase(BaseModel):
-    name: SlugStr
-    domains: List[DomainStr] = Field(min_length=1)
+class ProxyRoute(BaseModel):
+    path_prefix: PathPrefixStr = "/"
     target_protocol: TargetProtocol = TargetProtocol.HTTP
     target_host: IpStr
     target_port: PortInt
     websocket_enabled: bool = False
+
+
+class ProxyAppBase(BaseModel):
+    name: SlugStr
+    domains: List[DomainStr] = Field(min_length=1)
+    routes: List[ProxyRoute] = Field(min_length=1, max_length=20)
     custom_headers: List[CustomHeader] = Field(default_factory=list)
     max_body_size: Optional[str] = None
     basic_auth_enabled: bool = False
@@ -41,6 +55,55 @@ class ProxyAppBase(BaseModel):
     basic_auth_password: Optional[str] = None
     force_https: bool = False
     enabled: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_target_fields(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        if data.get("routes"):
+            return data
+        if data.get("target_host") is None or data.get("target_port") is None:
+            return data
+        data = dict(data)
+        data["routes"] = [
+            {
+                "path_prefix": data.pop("path_prefix", "/"),
+                "target_protocol": data.get("target_protocol", TargetProtocol.HTTP),
+                "target_host": data["target_host"],
+                "target_port": data["target_port"],
+                "websocket_enabled": data.pop("websocket_enabled", False),
+            }
+        ]
+        return data
+
+    @model_validator(mode="after")
+    def validate_unique_paths(self) -> "ProxyAppBase":
+        paths = [route.path_prefix for route in self.routes]
+        if len(paths) != len(set(paths)):
+            raise ValueError("Each path prefix must be unique within a proxy app")
+        return self
+
+    @property
+    def target_protocol(self) -> TargetProtocol:
+        return self.routes[0].target_protocol
+
+    @property
+    def target_host(self) -> str:
+        return self.routes[0].target_host
+
+    @property
+    def target_port(self) -> int:
+        return self.routes[0].target_port
+
+    @property
+    def websocket_enabled(self) -> bool:
+        return self.routes[0].websocket_enabled
+
+    @property
+    def upstream(self) -> str:
+        route = self.routes[0]
+        return f"{route.target_protocol.value}://{route.target_host}:{route.target_port}"
 
 
 class ProxyAppCreate(ProxyAppBase):
@@ -51,9 +114,22 @@ class ProxyAppUpdate(ProxyAppBase):
     pass
 
 
-class ProxyAppResponse(ProxyAppBase):
+class ProxyAppResponse(BaseModel):
     id: str
+    name: str
     config_file: str
+    domains: List[str]
+    routes: List[ProxyRoute]
+    target_protocol: TargetProtocol
+    target_host: str
+    target_port: int
+    websocket_enabled: bool
+    custom_headers: List[CustomHeader] = Field(default_factory=list)
+    max_body_size: Optional[str] = None
+    basic_auth_enabled: bool
+    basic_auth_username: Optional[str] = None
+    basic_auth_password: Optional[str] = None
+    force_https: bool
     enabled: bool
     https_enabled: bool
     upstream: str
@@ -80,12 +156,38 @@ class CertificateResponse(BaseModel):
 
 class CertificateCreateRequest(BaseModel):
     domain: DomainStr
-    email: Optional[str] = None
+    email: Optional[CertbotEmailStr] = None
+
+
+class CertificateSettingsResponse(BaseModel):
+    default_email: str
+    email_configured: bool
 
 
 class LogLinesResponse(BaseModel):
     lines: List[str]
     source: str
+
+
+class TrafficDebugEntry(BaseModel):
+    client_ip: str
+    timestamp: str
+    host: str
+    method: str
+    path: str
+    status: int
+    bytes_sent: int
+    forwarded_for: Optional[str] = None
+    user_agent: Optional[str] = None
+
+
+class TrafficDebugResponse(BaseModel):
+    proxy_id: str
+    proxy_name: str
+    domains: List[str]
+    dedicated_log: bool
+    source: str
+    entries: List[TrafficDebugEntry]
 
 
 class SystemHealthResponse(BaseModel):

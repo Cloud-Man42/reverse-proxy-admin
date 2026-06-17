@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../api/client";
 import { Card } from "../components/Card";
@@ -10,14 +10,22 @@ export function CertificatesPage() {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useToast();
   const [domain, setDomain] = useState("");
+  const [email, setEmail] = useState("");
   const [confirm, setConfirm] = useState<{ action: "renew" | "dry-run"; name?: string } | null>(null);
 
   const { data = [], isLoading } = useQuery({ queryKey: ["certificates"], queryFn: api.listCertificates });
+  const { data: settings } = useQuery({ queryKey: ["certificate-settings"], queryFn: api.certificateSettings });
+
+  useEffect(() => {
+    if (settings?.email_configured && settings.default_email) {
+      setEmail(settings.default_email);
+    }
+  }, [settings]);
 
   const issue = async (event: FormEvent) => {
     event.preventDefault();
     try {
-      const result = await api.issueCertificate(domain);
+      const result = await api.issueCertificate(domain, email.trim() || undefined);
       showSuccess(result.message);
       queryClient.invalidateQueries({ queryKey: ["certificates"] });
       setDomain("");
@@ -44,19 +52,46 @@ export function CertificatesPage() {
     }
   };
 
+  const emailConfigured = settings?.email_configured ?? false;
+
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-semibold">Certificates</h2>
 
       <Card title="Issue new certificate">
-        <form className="flex flex-col gap-3 md:flex-row" onSubmit={issue}>
-          <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="example.com" required />
-          <button type="submit" className="rounded-lg bg-accent px-4 py-2 text-sm text-white">
-            Create certificate
-          </button>
-          <button type="button" className="rounded-lg bg-white/10 px-4 py-2 text-sm" onClick={() => setConfirm({ action: "dry-run" })}>
-            Dry-run renew
-          </button>
+        {!emailConfigured ? (
+          <p className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            Certbot requires a real contact email. Set <code className="text-xs">CERTBOT_EMAIL</code> in{" "}
+            <code className="text-xs">/etc/nginx-admin/env</code> or enter one below. Placeholder addresses such as{" "}
+            <code className="text-xs">admin@example.com</code> are rejected by Let&apos;s Encrypt.
+          </p>
+        ) : null}
+        <form className="flex flex-col gap-3" onSubmit={issue}>
+          <div className="flex flex-col gap-3 md:flex-row">
+            <input
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              placeholder="example.com"
+              required
+              className="flex-1"
+            />
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@yourdomain.com"
+              type="email"
+              required={!emailConfigured}
+              className="flex-1"
+            />
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button type="submit" className="rounded-lg bg-accent px-4 py-2 text-sm text-white">
+              Create certificate
+            </button>
+            <button type="button" className="rounded-lg bg-white/10 px-4 py-2 text-sm" onClick={() => setConfirm({ action: "dry-run" })}>
+              Dry-run renew
+            </button>
+          </div>
         </form>
       </Card>
 

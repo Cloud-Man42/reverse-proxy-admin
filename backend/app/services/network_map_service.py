@@ -109,17 +109,20 @@ class NetworkMapService:
                     },
                 )
             )
+            route_summary = "; ".join(
+                f"{route.path_prefix} -> {route.target_protocol.value}://{route.target_host}:{route.target_port}"
+                for route in proxy.routes
+            )
             nodes.append(
                 NetworkMapNode(
                     id=upstream_id,
                     type="upstream",
-                    label=proxy.upstream,
-                    subtitle=f"{proxy.target_protocol}://{proxy.target_host}:{proxy.target_port}",
+                    label=proxy.upstream if len(proxy.routes) == 1 else f"{len(proxy.routes)} upstream routes",
+                    subtitle=route_summary,
                     status=status,
                     metadata={
                         "proxy_id": proxy.id,
-                        "target_host": proxy.target_host,
-                        "target_port": proxy.target_port,
+                        "routes": [route.model_dump() for route in proxy.routes],
                     },
                 )
             )

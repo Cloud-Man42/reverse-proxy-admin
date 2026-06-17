@@ -2,7 +2,8 @@ from pathlib import Path
 from typing import Optional
 
 from app.config import Settings
-from app.schemas import ProxyAppBase, ProxyAppCreate, ProxyAppResponse, ProxyAppUpdate
+from app.schemas import ProxyAppBase, ProxyAppCreate, ProxyAppResponse, ProxyAppUpdate, TargetProtocol
+from app.services.cert_paths import certificate_exists, certificate_paths
 from app.services.file_lock import file_lock
 from app.services.nginx_ops import NginxOps
 from app.services.nginx_parser import ParsedProxyConfig, list_proxy_configs, parse_config_file
@@ -10,12 +11,14 @@ from app.services.nginx_writer import NginxWriter
 
 
 def parsed_to_response(parsed: ParsedProxyConfig) -> ProxyAppResponse:
+    primary = parsed.routes[0]
     return ProxyAppResponse(
         id=parsed.slug,
         name=parsed.slug,
         config_file=parsed.config_file,
         domains=parsed.domains,
-        target_protocol=parsed.target_protocol,
+        routes=parsed.routes,
+        target_protocol=TargetProtocol(parsed.target_protocol),
         target_host=parsed.target_host,
         target_port=parsed.target_port,
         websocket_enabled=parsed.websocket_enabled,
@@ -38,6 +41,18 @@ class ProxyService:
         self.writer = NginxWriter(settings)
         self.ops = NginxOps(settings)
 
+    def _validate_force_https(self, app: ProxyAppBase) -> None:
+        if not app.force_https:
+            return
+        domain = app.domains[0]
+        if certificate_exists(self.settings, domain):
+            return
+        cert_path, _ = certificate_paths(self.settings, domain)
+        raise ValueError(
+            f"Cannot enable Force HTTPS: no certificate for {domain} at {cert_path}. "
+            "Issue a Let's Encrypt certificate first (port 80 must be reachable from the internet)."
+        )
+
     def list_proxies(self) -> list[ProxyAppResponse]:
         return [parsed_to_response(item) for item in list_proxy_configs(self.settings)]
 
@@ -52,6 +67,11 @@ class ProxyService:
         path = self.writer.config_path_for(payload.name)
         if path.exists():
             return False, f"Config already exists: {path.name}", None
+
+        try:
+            self._validate_force_https(payload)
+        except ValueError as exc:
+            return False, str(exc), None
 
         def write_fn() -> None:
             self.writer.write_htpasswd(payload)
@@ -111,6 +131,11 @@ class ProxyService:
 
         if renaming and new_path.exists():
             return False, f"Config already exists: {new_path.name}", None
+
+        try:
+            self._validate_force_https(payload)
+        except ValueError as exc:
+            return False, str(exc), None
 
         if not renaming:
             def write_fn() -> None:

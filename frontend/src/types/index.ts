@@ -1,8 +1,17 @@
+export interface ProxyRoute {
+  path_prefix: string;
+  target_protocol: "http" | "https";
+  target_host: string;
+  target_port: number;
+  websocket_enabled: boolean;
+}
+
 export interface ProxyApp {
   id: string;
   name: string;
   config_file: string;
   domains: string[];
+  routes: ProxyRoute[];
   target_protocol: "http" | "https";
   target_host: string;
   target_port: number;
@@ -25,6 +34,11 @@ export interface Certificate {
   issuer: string;
   expiry: string;
   status: "valid" | "expiring" | "expired";
+}
+
+export interface CertificateSettings {
+  default_email: string;
+  email_configured: boolean;
 }
 
 export interface DashboardStats {
@@ -132,13 +146,39 @@ export interface TrafficFlowTestResult {
   checks: TrafficFlowCheck[];
 }
 
-export interface ProxyFormData {
-  name: string;
-  domains: string;
+export interface TrafficDebugEntry {
+  client_ip: string;
+  timestamp: string;
+  host: string;
+  method: string;
+  path: string;
+  status: number;
+  bytes_sent: number;
+  forwarded_for?: string | null;
+  user_agent?: string | null;
+}
+
+export interface TrafficDebugResponse {
+  proxy_id: string;
+  proxy_name: string;
+  domains: string[];
+  dedicated_log: boolean;
+  source: string;
+  entries: TrafficDebugEntry[];
+}
+
+export interface ProxyRouteFormData {
+  path_prefix: string;
   target_protocol: "http" | "https";
   target_host: string;
   target_port: number;
   websocket_enabled: boolean;
+}
+
+export interface ProxyFormData {
+  name: string;
+  domains: string;
+  routes: ProxyRouteFormData[];
   custom_headers: { name: string; value: string }[];
   max_body_size: string;
   basic_auth_enabled: boolean;

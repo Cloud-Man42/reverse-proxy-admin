@@ -15,6 +15,8 @@ const CONFIRM_ACTION_LABELS: Record<string, string> = {
   disable: "Disable",
   test: "Run config test for",
 };
+
+export function ProxiesPage() {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useToast();
   const { canCreate, canEdit, canRead } = useAuth();
@@ -80,7 +82,11 @@ const CONFIRM_ACTION_LABELS: Record<string, string> = {
                   <tr key={proxy.id} className="border-b border-white/5">
                     <td className="px-3 py-3 font-medium">{proxy.name}</td>
                     <td className="px-3 py-3">{proxy.domains.join(", ")}</td>
-                    <td className="px-3 py-3 font-mono text-xs">{proxy.upstream}</td>
+                    <td className="px-3 py-3 font-mono text-xs">
+                      {proxy.routes.length > 1
+                        ? `${proxy.routes.length} routes`
+                        : `${proxy.routes[0]?.target_protocol || proxy.target_protocol}://${proxy.routes[0]?.target_host || proxy.target_host}:${proxy.routes[0]?.target_port || proxy.target_port}`}
+                    </td>
                     <td className="px-3 py-3">
                       <StatusBadge status={proxy.enabled ? "enabled" : "disabled"} />
                     </td>

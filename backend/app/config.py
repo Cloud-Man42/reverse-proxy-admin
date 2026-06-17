@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     admin_password: str = ""
 
-    certbot_email: str = "admin@example.com"
+    certbot_email: str = ""
     certbot_expiring_days: int = 30
 
     allowed_ips: List[str] = Field(default_factory=lambda: ["127.0.0.1", "::1", "10.0.0.0/24"])

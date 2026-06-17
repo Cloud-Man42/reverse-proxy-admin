@@ -5,7 +5,7 @@ from typing import List
 
 from app.config import Settings
 from app.schemas import CertificateResponse
-from app.security.validators import validate_domain
+from app.security.validators import validate_certbot_email, validate_domain
 
 
 class CertbotOps:
@@ -15,20 +15,9 @@ class CertbotOps:
         self.settings = settings
 
     def _certbot_cmd(self, *args: str) -> list[str]:
-        self.settings.ensure_certbot_dirs()
-        certbot_args = [
-            self.CERTBOT_BIN,
-            "--config-dir",
-            str(self.settings.certbot_config_dir),
-            "--work-dir",
-            str(self.settings.certbot_work_dir),
-            "--logs-dir",
-            str(self.settings.certbot_logs_dir),
-            *args,
-        ]
-        if self.settings.use_sudo:
-            return ["sudo", *certbot_args]
-        return certbot_args
+        from app.services.cert_paths import build_certbot_cmd
+
+        return build_certbot_cmd(self.settings, *args)
 
     def _cert_path(self, name: str) -> Path:
         return self.settings.letsencrypt_live / name / "fullchain.pem"
@@ -63,37 +52,106 @@ class CertbotOps:
             return "expiring"
         return "valid"
 
+    def _parse_expiry_from_certbot_line(self, line: str) -> datetime | None:
+        if "Expiry Date:" not in line:
+            return None
+        value = line.split("Expiry Date:", 1)[1].strip().split(" (", 1)[0]
+        try:
+            return datetime.strptime(value, "%Y-%m-%d %H:%M:%S%z")
+        except ValueError:
+            return None
+
     def list_certificates(self) -> List[CertificateResponse]:
+        from app.services.cert_paths import run_certbot_certificates
+
         certs: List[CertificateResponse] = []
         live_dir = self.settings.letsencrypt_live
-        if not live_dir.exists():
+        if live_dir.exists():
+            try:
+                entries = sorted(live_dir.iterdir())
+            except OSError:
+                entries = []
+            for entry in entries:
+                if not entry.is_dir():
+                    continue
+                cert_path = self._cert_path(entry.name)
+                try:
+                    if not cert_path.is_file():
+                        continue
+                    expiry = self._parse_expiry(cert_path)
+                    issuer = self._parse_issuer(cert_path)
+                except (OSError, RuntimeError):
+                    continue
+                certs.append(
+                    CertificateResponse(
+                        name=entry.name,
+                        domains=[entry.name],
+                        issuer=issuer,
+                        expiry=expiry,
+                        status=self._status_for_expiry(expiry),
+                    )
+                )
+            if certs:
+                return certs
+
+        if not self.settings.use_sudo:
             return certs
 
-        for entry in sorted(live_dir.iterdir()):
-            if not entry.is_dir():
+        returncode, output = run_certbot_certificates(self.settings)
+        if returncode != 0 or "No certificates found" in output:
+            return certs
+
+        current_name: str | None = None
+        current_domains: list[str] = []
+        current_expiry: datetime | None = None
+        for line in output.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("Certificate Name:"):
+                current_name = stripped.split(":", 1)[1].strip()
+                current_domains = []
+                current_expiry = None
                 continue
-            cert_path = self._cert_path(entry.name)
-            if not cert_path.exists():
+            if stripped.startswith("Domains:") and current_name:
+                current_domains = stripped.split(":", 1)[1].split()
                 continue
-            try:
-                expiry = self._parse_expiry(cert_path)
-                issuer = self._parse_issuer(cert_path)
-            except RuntimeError:
-                continue
-            certs.append(
-                CertificateResponse(
-                    name=entry.name,
-                    domains=[entry.name],
-                    issuer=issuer,
-                    expiry=expiry,
-                    status=self._status_for_expiry(expiry),
+            if stripped.startswith("Expiry Date:") and current_name:
+                current_expiry = self._parse_expiry_from_certbot_line(stripped)
+                if current_expiry is None:
+                    continue
+                certs.append(
+                    CertificateResponse(
+                        name=current_name,
+                        domains=current_domains or [current_name],
+                        issuer="Let's Encrypt",
+                        expiry=current_expiry,
+                        status=self._status_for_expiry(current_expiry),
+                    )
                 )
-            )
+                current_name = None
         return certs
+
+    def resolve_contact_email(self, email: str | None = None) -> str:
+        try:
+            return validate_certbot_email(email or self.settings.certbot_email)
+        except ValueError as exc:
+            raise ValueError(
+                "Set a valid CERTBOT_EMAIL in /etc/nginx-admin/env or provide an email when issuing the certificate."
+            ) from exc
+
+    def get_settings_info(self) -> tuple[str, bool]:
+        email = self.settings.certbot_email.strip()
+        try:
+            validated = validate_certbot_email(email)
+            return validated, True
+        except ValueError:
+            return email, False
 
     def issue_certificate(self, domain: str, email: str | None = None) -> tuple[bool, str]:
         domain = validate_domain(domain)
-        email = email or self.settings.certbot_email
+        try:
+            contact_email = self.resolve_contact_email(email)
+        except ValueError as exc:
+            return False, str(exc)
         result = subprocess.run(
             self._certbot_cmd(
                 "--nginx",
@@ -102,7 +160,7 @@ class CertbotOps:
                 "--non-interactive",
                 "--agree-tos",
                 "-m",
-                email,
+                contact_email,
             ),
             capture_output=True,
             text=True,

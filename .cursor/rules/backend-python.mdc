@@ -1,0 +1,13 @@
+---
+description: Backend Python testing conventions
+globs: backend/**/*.py
+alwaysApply: false
+---
+
+# Backend testing
+
+- Prefer service-level tests with mocks for subprocess, nginx, and certbot.
+- Add FastAPI TestClient tests for new API routes and permission checks.
+- Use shared fixtures from `backend/tests/conftest.py` (`temp_settings`, `client`, `auth_session`, `viewer_session`).
+- Name tests `test_<behavior>_<expected_outcome>`.
+- Never invoke real system binaries (`nginx`, `certbot`, `systemctl`) in unit tests.

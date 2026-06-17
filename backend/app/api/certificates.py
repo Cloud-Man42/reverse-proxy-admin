@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models.user import User
-from app.schemas import CertificateCreateRequest, CertificateResponse, MessageResponse
+from app.schemas import CertificateCreateRequest, CertificateResponse, CertificateSettingsResponse, MessageResponse
 from app.security.permissions import Permission, require_permission
 from app.security.ip_allowlist import _client_ip
 from app.services.audit_service import log_audit
@@ -21,6 +21,15 @@ async def list_certificates(
     _user: User = Depends(require_permission(Permission.READ)),
 ) -> List[CertificateResponse]:
     return CertbotOps(settings).list_certificates()
+
+
+@router.get("/settings", response_model=CertificateSettingsResponse)
+async def certificate_settings(
+    settings: Settings = Depends(get_settings),
+    _user: User = Depends(require_permission(Permission.READ)),
+) -> CertificateSettingsResponse:
+    default_email, configured = CertbotOps(settings).get_settings_info()
+    return CertificateSettingsResponse(default_email=default_email, email_configured=configured)
 
 
 @router.post("", response_model=MessageResponse)

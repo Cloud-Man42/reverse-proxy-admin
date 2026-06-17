@@ -64,6 +64,14 @@ for logfile in /var/log/nginx/error.log /var/log/nginx/access.log; do
   fi
 done
 
+echo "==> Allowing nginx-admin to read Let's Encrypt certificates"
+if [[ -d /etc/letsencrypt/live ]]; then
+  setfacl -R -m "u:${SERVICE_USER}:rx" /etc/letsencrypt/live 2>/dev/null || true
+fi
+if [[ -d /etc/letsencrypt/archive ]]; then
+  setfacl -R -m "u:${SERVICE_USER}:r" /etc/letsencrypt/archive 2>/dev/null || true
+fi
+
 echo "==> Installing sudoers"
 sed -i 's/\r$//' "${APP_ROOT}/deploy/sudoers/nginx-admin"
 cp "${APP_ROOT}/deploy/sudoers/nginx-admin" /etc/sudoers.d/nginx-admin
@@ -78,6 +86,13 @@ systemctl daemon-reload
 echo "==> Ensuring letsencrypt dir for systemd namespace"
 mkdir -p /etc/letsencrypt/live
 chown root:root /etc/letsencrypt/live
+
+echo "==> Installing proxy debug log format"
+mkdir -p /etc/nginx/conf.d
+cp "${APP_ROOT}/deploy/nginx/proxy-debug-log.conf" /etc/nginx/conf.d/proxy-debug-log.conf
+sed -i 's/\r$//' /etc/nginx/conf.d/proxy-debug-log.conf
+nginx -t
+systemctl reload nginx
 
 echo "==> Restarting services"
 systemctl restart nginx-admin

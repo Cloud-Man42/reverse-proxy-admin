@@ -55,7 +55,7 @@ if [[ ! -f "${ENV_FILE}" ]]; then
 SECRET_KEY=${SECRET_KEY}
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=CHANGE_ME_NOW
-CERTBOT_EMAIL=admin@example.com
+CERTBOT_EMAIL=you@yourdomain.com
 ALLOWED_IPS=["127.0.0.1","::1","10.0.0.0/24"]
 DATABASE_URL=sqlite:////var/lib/reverse-proxy-admin/app.db
 USE_SUDO=true
@@ -99,6 +99,10 @@ if [[ ! -f /etc/nginx/sites-available/admin-ui.conf ]]; then
   cp "${APP_ROOT}/deploy/nginx/admin-ui.conf.example" /etc/nginx/sites-available/admin-ui.conf
   ln -sf /etc/nginx/sites-available/admin-ui.conf /etc/nginx/sites-enabled/admin-ui.conf
 fi
+
+mkdir -p /etc/nginx/conf.d
+cp "${APP_ROOT}/deploy/nginx/proxy-debug-log.conf" /etc/nginx/conf.d/proxy-debug-log.conf
+sed -i 's/\r$//' /etc/nginx/conf.d/proxy-debug-log.conf
 
 nginx -t
 systemctl reload nginx

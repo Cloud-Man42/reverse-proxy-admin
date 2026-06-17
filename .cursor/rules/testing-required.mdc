@@ -1,0 +1,14 @@
+---
+description: Require unit tests for new backend and frontend functionality
+alwaysApply: true
+---
+
+# Testing required
+
+- New backend functionality must include pytest unit tests with at least one positive and one negative case.
+- New frontend functionality must include Vitest tests for logic, hooks, or components touched by the change.
+- Extract pure functions from pages when needed to keep UI tests focused on behavior.
+- Before considering feature work complete, run:
+  - `cd backend && pytest`
+  - `cd frontend && npm test`
+- Do not merge feature work without adding or updating tests in the same change.

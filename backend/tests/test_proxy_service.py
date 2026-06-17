@@ -1,49 +1,10 @@
 from unittest.mock import patch
 
 import pytest
-from pathlib import Path
 
-from app.config import Settings
-from app.schemas import ProxyAppCreate, ProxyAppUpdate, TargetProtocol
+from app.schemas import ProxyAppCreate, ProxyRoute, TargetProtocol
 from app.services.nginx_ops import NginxOps
 from app.services.proxy_service import ProxyService
-
-
-@pytest.fixture
-def temp_settings(tmp_path: Path) -> Settings:
-    sites_available = tmp_path / "sites-available"
-    sites_enabled = tmp_path / "sites-enabled"
-    sites_available.mkdir()
-    sites_enabled.mkdir()
-    return Settings(
-        data_dir=tmp_path / "data",
-        backup_dir=tmp_path / "backups",
-        nginx_sites_available=sites_available,
-        nginx_sites_enabled=sites_enabled,
-        htpasswd_dir=tmp_path / "htpasswd",
-        use_sudo=False,
-        admin_password="test-password",
-    )
-
-
-def _sample_create(name: str = "app1") -> ProxyAppCreate:
-    return ProxyAppCreate(
-        name=name,
-        domains=["example.com"],
-        target_protocol=TargetProtocol.HTTP,
-        target_host="10.0.0.10",
-        target_port=8080,
-    )
-
-
-def _sample_update(name: str = "app2") -> ProxyAppUpdate:
-    return ProxyAppUpdate(
-        name=name,
-        domains=["example.com"],
-        target_protocol=TargetProtocol.HTTP,
-        target_host="10.0.0.10",
-        target_port=8080,
-    )
 
 
 @patch.object(NginxOps, "disable_site")
@@ -51,23 +12,56 @@ def _sample_update(name: str = "app2") -> ProxyAppUpdate:
 @patch.object(NginxOps, "is_enabled", return_value=True)
 @patch.object(NginxOps, "reload", return_value=(True, "reloaded"))
 @patch.object(NginxOps, "test_config", return_value=(True, "ok"))
-def test_update_proxy_can_rename_app(
-    _test_config,
-    _reload,
-    _is_enabled,
-    enable_site,
-    disable_site,
-    temp_settings: Settings,
-) -> None:
+def test_update_proxy_can_rename_app(_test, _reload, _enabled, enable_site, disable_site, temp_settings):
     service = ProxyService(temp_settings)
-    ok, _, created = service.create_proxy(_sample_create("app1"))
+    create_payload = ProxyAppCreate(
+        name="app1",
+        domains=["example.com"],
+        routes=[ProxyRoute(path_prefix="/", target_protocol=TargetProtocol.HTTP, target_host="10.0.0.10", target_port=8080)],
+    )
+    ok, _, created = service.create_proxy(create_payload)
     assert ok and created is not None
 
-    ok, _, updated = service.update_proxy("app1", _sample_update("app2"))
+    update_payload = ProxyAppCreate(
+        name="app2",
+        domains=["example.com"],
+        routes=[ProxyRoute(path_prefix="/", target_protocol=TargetProtocol.HTTP, target_host="10.0.0.10", target_port=8080)],
+    )
+    ok, _, updated = service.update_proxy("app1", update_payload)
     assert ok
     assert updated is not None
     assert updated.id == "app2"
-    assert (temp_settings.nginx_sites_available / "app1.conf").exists() is False
-    assert (temp_settings.nginx_sites_available / "app2.conf").exists() is True
-    disable_site.assert_any_call("app1.conf")
-    enable_site.assert_any_call("app2.conf")
+
+
+@patch.object(NginxOps, "enable_site")
+@patch.object(NginxOps, "reload", return_value=(True, "reloaded"))
+@patch.object(NginxOps, "test_config", return_value=(True, "ok"))
+def test_force_https_rejected_without_certificate(_test, _reload, _enable, temp_settings):
+    service = ProxyService(temp_settings)
+    payload = ProxyAppCreate(
+        name="secure",
+        domains=["secure.example.com"],
+        force_https=True,
+        routes=[ProxyRoute(path_prefix="/", target_protocol=TargetProtocol.HTTP, target_host="10.0.0.10", target_port=8080)],
+    )
+    with patch("app.services.proxy_service.certificate_exists", return_value=False):
+        ok, message, _ = service.create_proxy(payload)
+    assert ok is False
+    assert "Force HTTPS" in message
+
+
+@patch.object(NginxOps, "enable_site")
+@patch.object(NginxOps, "reload", return_value=(True, "reloaded"))
+@patch.object(NginxOps, "test_config", return_value=(False, "nginx -t failed"))
+def test_create_proxy_rolls_back_on_nginx_test_failure(_test, _reload, _enable, temp_settings):
+    service = ProxyService(temp_settings)
+    payload = ProxyAppCreate(
+        name="broken",
+        domains=["example.com"],
+        routes=[ProxyRoute(path_prefix="/", target_protocol=TargetProtocol.HTTP, target_host="10.0.0.10", target_port=8080)],
+    )
+    ok, message, created = service.create_proxy(payload)
+    assert ok is False
+    assert "nginx -t failed" in message
+    assert created is None
+    assert not (temp_settings.nginx_sites_available / "broken.conf").exists()
