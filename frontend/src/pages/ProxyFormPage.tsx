@@ -107,7 +107,13 @@ export function ProxyFormPage() {
       const payload = toPayload(form);
       const result = await api.testFlowDraft(payload);
       setFlowResult(result);
-      showSuccess(result.success ? "Traffic flow test passed" : "Traffic flow test found issues");
+      if (result.success) {
+        showSuccess("Traffic flow test passed");
+      } else {
+        const failed = result.checks.filter((check) => !check.success);
+        const details = failed.map((check) => `${check.name}: ${check.message}`).join(" | ");
+        showError(details || result.summary);
+      }
     } catch (error) {
       showError(error instanceof ApiError ? error.message : "Flow test failed");
     } finally {

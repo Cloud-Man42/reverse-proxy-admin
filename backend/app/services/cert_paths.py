@@ -71,6 +71,8 @@ def domain_has_certificate_in_output(domain: str, output: str) -> bool:
         path_match = CERT_PATH_LINE_RE.match(line)
         if path_match and path_match.group(1).strip().lower() == domain_lower:
             return True
+        if "certificate path:" in line.lower() and domain_lower in line.lower():
+            return True
     return False
 
 
@@ -93,6 +95,19 @@ def certificate_exists(settings: Settings, domain: str) -> bool:
         return False
     if domain_has_certificate_in_output(domain, output):
         return True
+
+    # Fallback: list certs from the system config dir only (no custom work/logs dirs).
+    if settings.use_sudo:
+        minimal = subprocess.run(
+            ["sudo", "/usr/bin/certbot", "certificates", "--config-dir", str(settings.certbot_config_dir)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        minimal_output = (minimal.stdout or "") + (minimal.stderr or "")
+        if domain_has_certificate_in_output(domain, minimal_output):
+            return True
+
     return False
 
 

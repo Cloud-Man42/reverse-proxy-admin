@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.config import Settings
 from app.schemas import ProxyAppBase, TrafficFlowCheck, TrafficFlowTestResult
-from app.services.cert_paths import certificate_exists_message
+from app.services.cert_paths import certificate_exists, certificate_exists_message
 from app.services.nginx_writer import NginxWriter, PROXY_DEBUG_LOG_FORMAT
 
 
@@ -74,17 +74,40 @@ class TrafficFlowService:
         ok, message = certificate_exists_message(self.settings, domain)
         return TrafficFlowCheck(name="ssl_readiness", success=ok, message=message)
 
+    def _prepare_rendered_for_syntax_test(self, rendered: str, test_dir: Path, app: ProxyAppBase) -> str:
+        access_log_path = (test_dir / "access.log").as_posix()
+        rendered = re.sub(
+            r"access_log\s+/var/log/nginx/[^\s;]+",
+            lambda _match: f"access_log {access_log_path}",
+            rendered,
+        )
+        if not app.force_https:
+            return rendered
+
+        domain = app.domains[0]
+        if certificate_exists(self.settings, domain):
+            return rendered
+
+        return self._rendered_config_for_syntax_test(rendered, test_dir, app)
+
     def _isolated_nginx_conf(self, test_dir: Path, site_path: Path) -> str:
         pid_path = test_dir / "nginx.pid"
         error_log = test_dir / "error.log"
         for subdir in ("body", "proxy", "fastcgi", "uwsgi", "scgi"):
             (test_dir / subdir).mkdir(parents=True, exist_ok=True)
+
+        mime_include = ""
+        mime_types = Path("/etc/nginx/mime.types")
+        if mime_types.is_file():
+            mime_include = f"    include {mime_types};\n    default_type application/octet-stream;\n"
+
         return (
             f"pid {pid_path};\n"
             f"error_log {error_log} warn;\n"
             f"events {{ worker_connections 1024; }}\n"
             f"http {{\n"
             f"    {PROXY_DEBUG_LOG_FORMAT}\n"
+            f"{mime_include}"
             f"    client_body_temp_path {test_dir / 'body'};\n"
             f"    proxy_temp_path {test_dir / 'proxy'};\n"
             f"    fastcgi_temp_path {test_dir / 'fastcgi'};\n"
@@ -143,13 +166,7 @@ class TrafficFlowService:
 
         try:
             rendered = self.writer.render_config(app)
-            if app.force_https:
-                rendered = self._rendered_config_for_syntax_test(rendered, test_dir, app)
-            rendered = re.sub(
-                r"access_log\s+/var/log/nginx/[^\s;]+",
-                f"access_log {test_dir / 'access.log'}",
-                rendered,
-            )
+            rendered = self._prepare_rendered_for_syntax_test(rendered, test_dir, app)
             site_path.write_text(rendered, encoding="utf-8")
             nginx_conf.write_text(self._isolated_nginx_conf(test_dir, site_path), encoding="utf-8")
             result = subprocess.run(
