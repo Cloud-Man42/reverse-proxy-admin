@@ -88,10 +88,14 @@ else
   echo "==> All required OS packages are already installed"
 fi
 
+SERVICE_USER="nginx-admin"
+
 echo "==> Ensuring shared directories exist"
 mkdir -p /etc/letsencrypt/live
 mkdir -p /var/lib/letsencrypt
+mkdir -p /var/lib/reverse-proxy-admin/certbot/work /var/lib/reverse-proxy-admin/certbot/logs
 mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+chown -R "${SERVICE_USER}:${SERVICE_USER}" /var/lib/reverse-proxy-admin/certbot 2>/dev/null || true
 
 if has_command nginx; then
   echo "==> Ensuring nginx service is enabled"

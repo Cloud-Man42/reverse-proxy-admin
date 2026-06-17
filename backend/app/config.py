@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     nginx_error_log: Path = Path("/var/log/nginx/error.log")
     nginx_access_log: Path = Path("/var/log/nginx/access.log")
     letsencrypt_live: Path = Path("/etc/letsencrypt/live")
+    certbot_config_dir: Path = Path("/etc/letsencrypt")
+    certbot_work_dir: Path = Path("/var/lib/reverse-proxy-admin/certbot/work")
+    certbot_logs_dir: Path = Path("/var/lib/reverse-proxy-admin/certbot/logs")
     htpasswd_dir: Path = Path("/etc/nginx/.htpasswd")
 
     excluded_config_files: List[str] = Field(default_factory=lambda: ["admin-ui.conf", "default"])
@@ -54,6 +57,10 @@ class Settings(BaseSettings):
     @classmethod
     def expand_paths(cls, value: Path | str) -> Path:
         return Path(value).expanduser()
+
+    def ensure_certbot_dirs(self) -> None:
+        self.certbot_work_dir.mkdir(parents=True, exist_ok=True)
+        self.certbot_logs_dir.mkdir(parents=True, exist_ok=True)
 
     def allowed_read_paths(self) -> List[Path]:
         return [

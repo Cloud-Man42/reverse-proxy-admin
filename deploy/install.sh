@@ -23,7 +23,7 @@ echo "==> Creating service user and directories"
 if ! id "${SERVICE_USER}" &>/dev/null; then
   useradd --system --home "${APP_ROOT}" --shell /usr/sbin/nologin "${SERVICE_USER}"
 fi
-mkdir -p "${APP_ROOT}" /var/lib/reverse-proxy-admin/backups /etc/nginx-admin /etc/nginx/.htpasswd /etc/letsencrypt/live
+mkdir -p "${APP_ROOT}" /var/lib/reverse-proxy-admin/backups /var/lib/reverse-proxy-admin/certbot/work /var/lib/reverse-proxy-admin/certbot/logs /etc/nginx-admin /etc/nginx/.htpasswd /etc/letsencrypt/live
 chown -R "${SERVICE_USER}:${SERVICE_USER}" /var/lib/reverse-proxy-admin
 
 echo "==> Deploying application files"

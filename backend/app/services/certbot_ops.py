@@ -9,13 +9,26 @@ from app.security.validators import validate_domain
 
 
 class CertbotOps:
+    CERTBOT_BIN = "/usr/bin/certbot"
+
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
-    def _cmd(self, *args: str) -> list[str]:
+    def _certbot_cmd(self, *args: str) -> list[str]:
+        self.settings.ensure_certbot_dirs()
+        certbot_args = [
+            self.CERTBOT_BIN,
+            "--config-dir",
+            str(self.settings.certbot_config_dir),
+            "--work-dir",
+            str(self.settings.certbot_work_dir),
+            "--logs-dir",
+            str(self.settings.certbot_logs_dir),
+            *args,
+        ]
         if self.settings.use_sudo:
-            return ["sudo", *args]
-        return list(args)
+            return ["sudo", *certbot_args]
+        return certbot_args
 
     def _cert_path(self, name: str) -> Path:
         return self.settings.letsencrypt_live / name / "fullchain.pem"
@@ -82,8 +95,7 @@ class CertbotOps:
         domain = validate_domain(domain)
         email = email or self.settings.certbot_email
         result = subprocess.run(
-            self._cmd(
-                "certbot",
+            self._certbot_cmd(
                 "--nginx",
                 "-d",
                 domain,
@@ -103,7 +115,7 @@ class CertbotOps:
         if not cert_name.replace("-", "").replace(".", "").isalnum():
             raise ValueError("Invalid certificate name")
         result = subprocess.run(
-            self._cmd("certbot", "renew", "--cert-name", cert_name),
+            self._certbot_cmd("renew", "--cert-name", cert_name),
             capture_output=True,
             text=True,
             check=False,
@@ -113,7 +125,7 @@ class CertbotOps:
 
     def dry_run_renew(self) -> tuple[bool, str]:
         result = subprocess.run(
-            self._cmd("certbot", "renew", "--dry-run"),
+            self._certbot_cmd("renew", "--dry-run"),
             capture_output=True,
             text=True,
             check=False,
