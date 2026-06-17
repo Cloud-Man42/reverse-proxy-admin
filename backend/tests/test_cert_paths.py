@@ -35,7 +35,27 @@ Found the following certs:
     assert domain_has_certificate_in_output("missing.example.com", output) is False
 
 
-def test_certificate_exists_uses_certbot_when_unreadable(tmp_path):
+def test_domain_has_certificate_in_output_matches_certificate_path_line():
+    output = """
+  Certificate Name: sora.inacloud.net-0001
+    Certificate Path: /etc/letsencrypt/live/sora.inacloud.net/fullchain.pem
+"""
+    assert domain_has_certificate_in_output("sora.inacloud.net", output) is True
+
+
+def test_certificate_exists_uses_sudo_test_when_unreadable(tmp_path):
+    settings = Settings(
+        data_dir=tmp_path / "data",
+        letsencrypt_live=tmp_path / "letsencrypt" / "live",
+        certbot_config_dir=tmp_path / "letsencrypt",
+        use_sudo=True,
+    )
+    domain = "sora.inacloud.net"
+    with patch("pathlib.Path.is_file", return_value=False):
+        with patch("app.services.cert_paths._sudo_path_is_file", return_value=True):
+            with patch("app.services.cert_paths.run_certbot_certificates") as mock_run:
+                assert certificate_exists(settings, domain) is True
+                mock_run.assert_not_called()
     settings = Settings(
         data_dir=tmp_path / "data",
         letsencrypt_live=tmp_path / "letsencrypt" / "live",

@@ -1,3 +1,4 @@
+import re
 import shutil
 import socket
 import subprocess
@@ -144,6 +145,11 @@ class TrafficFlowService:
             rendered = self.writer.render_config(app)
             if app.force_https:
                 rendered = self._rendered_config_for_syntax_test(rendered, test_dir, app)
+            rendered = re.sub(
+                r"access_log\s+/var/log/nginx/[^\s;]+",
+                f"access_log {test_dir / 'access.log'}",
+                rendered,
+            )
             site_path.write_text(rendered, encoding="utf-8")
             nginx_conf.write_text(self._isolated_nginx_conf(test_dir, site_path), encoding="utf-8")
             result = subprocess.run(

@@ -9,4 +9,6 @@ nginx-admin ALL=(root) NOPASSWD: /bin/systemctl is-active nginx
 nginx-admin ALL=(root) NOPASSWD: /bin/systemctl status nginx --no-pager
 nginx-admin ALL=(root) NOPASSWD: /bin/systemctl reload nginx
 nginx-admin ALL=(root) NOPASSWD: /usr/bin/certbot *
+nginx-admin ALL=(root) NOPASSWD: /usr/bin/test -f /etc/letsencrypt/live/*/fullchain.pem
+nginx-admin ALL=(root) NOPASSWD: /usr/bin/test -f /etc/letsencrypt/live/*/privkey.pem
 nginx-admin ALL=(root) NOPASSWD: /usr/sbin/ufw status *

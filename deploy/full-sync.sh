@@ -67,9 +67,11 @@ done
 echo "==> Allowing nginx-admin to read Let's Encrypt certificates"
 if [[ -d /etc/letsencrypt/live ]]; then
   setfacl -R -m "u:${SERVICE_USER}:rx" /etc/letsencrypt/live 2>/dev/null || true
+  setfacl -d -m "u:${SERVICE_USER}:rx" /etc/letsencrypt/live 2>/dev/null || true
 fi
 if [[ -d /etc/letsencrypt/archive ]]; then
   setfacl -R -m "u:${SERVICE_USER}:r" /etc/letsencrypt/archive 2>/dev/null || true
+  setfacl -d -m "u:${SERVICE_USER}:r" /etc/letsencrypt/archive 2>/dev/null || true
 fi
 
 echo "==> Installing sudoers"
