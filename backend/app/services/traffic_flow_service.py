@@ -41,7 +41,7 @@ class TrafficFlowService:
             return TrafficFlowCheck(
                 name="ssl_readiness",
                 success=True,
-                message="HTTPS redirect not enabled — SSL check skipped",
+                message="HTTPS redirect not enabled - SSL check skipped",
             )
         domain = app.domains[0]
         cert_path = self.settings.letsencrypt_live / domain / "fullchain.pem"
@@ -140,7 +140,7 @@ class TrafficFlowService:
         success = all(check.success for check in critical)
         failed = [c.name for c in critical if not c.success]
         if success:
-            summary = "Traffic flow test passed — configuration should work when applied."
+            summary = "Traffic flow test passed - configuration should work when applied."
         else:
             summary = f"Traffic flow test failed: {', '.join(failed)}"
 

@@ -62,7 +62,7 @@ USE_SUDO=true
 DEBUG=false
 EOF
   chmod 600 "${ENV_FILE}"
-  echo "Created ${ENV_FILE} — set ADMIN_PASSWORD before starting service."
+  echo "Created ${ENV_FILE} - set ADMIN_PASSWORD before starting service."
 fi
 
 echo "==> Installing sudoers"

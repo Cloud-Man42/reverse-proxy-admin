@@ -9,7 +9,12 @@ import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { ProxyApp } from "../types";
 
-export function ProxiesPage() {
+const CONFIRM_ACTION_LABELS: Record<string, string> = {
+  delete: "Delete",
+  enable: "Enable",
+  disable: "Disable",
+  test: "Run config test for",
+};
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useToast();
   const { canCreate, canEdit, canRead } = useAuth();
@@ -117,7 +122,7 @@ export function ProxiesPage() {
       <ConfirmDialog
         open={!!confirm}
         title="Confirm action"
-        message={confirm ? `${confirm.action} ${confirm.proxy.name}?` : ""}
+        message={confirm ? `${CONFIRM_ACTION_LABELS[confirm.action]} ${confirm.proxy.name}?` : ""}
         confirmLabel="Continue"
         onConfirm={runAction}
         onCancel={() => setConfirm(null)}

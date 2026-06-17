@@ -18,7 +18,7 @@ class NetworkMapService:
         status = self.firewall_service.get_status()
         if not status.rules:
             ports = ", ".join(str(p) for p in self.settings.network_exposed_ports)
-            return f"UFW — ports {ports}"
+            return f"UFW - ports {ports}"
         highlights: list[str] = []
         for rule in status.rules[:4]:
             highlights.append(f"{rule.port}/{rule.protocol} ← {rule.source}")

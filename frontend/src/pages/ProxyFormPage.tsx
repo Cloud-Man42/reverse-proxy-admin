@@ -8,6 +8,14 @@ import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { ProxyFormData, TrafficFlowTestResult } from "../types";
 
+const FLOW_CHECK_LABELS: Record<string, string> = {
+  input_validation: "Input validation",
+  nginx_syntax: "Nginx syntax",
+  upstream_connectivity: "Upstream connectivity",
+  ssl_readiness: "SSL readiness",
+  traffic_path: "Traffic path",
+};
+
 const emptyForm: ProxyFormData = {
   name: "",
   domains: "",
@@ -222,7 +230,7 @@ export function ProxyFormPage() {
             {flowResult.checks.map((check) => (
               <div key={check.name} className="flex items-start justify-between gap-3 rounded-lg bg-black/20 p-3 text-sm">
                 <div>
-                  <p className="font-medium">{check.name.replace(/_/g, " ")}</p>
+                  <p className="font-medium">{FLOW_CHECK_LABELS[check.name] || check.name.replace(/_/g, " ")}</p>
                   <p className="text-white/60">{check.message}</p>
                 </div>
                 <StatusBadge status={check.success ? "valid" : "expired"} />

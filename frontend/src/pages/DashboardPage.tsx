@@ -28,9 +28,9 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      <Card title="Nätverkskarta">
+      <Card title="Network map">
         <p className="mb-3 text-sm text-white/60">
-          Trafikflöde: Internet → Firewall → Nginx → webbappar/upstreams. Klicka på en app-nod för att redigera.
+          Traffic flow: Internet → Firewall → Nginx → web apps/upstreams. Click an app node to edit it.
         </p>
         <NetworkMap />
       </Card>
