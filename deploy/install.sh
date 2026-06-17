@@ -16,10 +16,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-echo "==> Installing system packages"
-apt-get update
-apt-get install -y nginx certbot python3-certbot-nginx python3.12-venv python3-pip \
-  apache2-utils nodejs npm openssl rsync
+echo "==> Checking system prerequisites"
+bash "${SCRIPT_DIR}/install-prerequisites.sh"
 
 echo "==> Creating service user and directories"
 if ! id "${SERVICE_USER}" &>/dev/null; then
@@ -77,6 +75,7 @@ echo "==> Setting nginx path permissions"
 chown -R "${SERVICE_USER}:${SERVICE_USER}" /etc/nginx/sites-available /etc/nginx/sites-enabled /etc/nginx/.htpasswd
 
 echo "==> Installing systemd service"
+sed -i 's/\r$//' "${APP_ROOT}/deploy/systemd/nginx-admin.service"
 cp "${APP_ROOT}/deploy/systemd/nginx-admin.service" /etc/systemd/system/nginx-admin.service
 systemctl daemon-reload
 systemctl enable nginx-admin

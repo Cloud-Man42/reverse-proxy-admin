@@ -103,7 +103,7 @@ export function ProxyFormPage() {
     setFlowResult(null);
     try {
       const payload = toPayload(form);
-      const result = isEdit ? await api.testFlowProxy(id!) : await api.testFlowDraft(payload);
+      const result = await api.testFlowDraft(payload);
       setFlowResult(result);
       showSuccess(result.success ? "Traffic flow test passed" : "Traffic flow test found issues");
     } catch (error) {
@@ -133,7 +133,7 @@ export function ProxyFormPage() {
         <form className="grid gap-4 md:grid-cols-2" onSubmit={onSubmit}>
           <div>
             <label className="mb-1 block text-sm">App name</label>
-            <input value={form.name} disabled={isEdit} onChange={(e) => update("name", e.target.value)} required />
+            <input value={form.name} onChange={(e) => update("name", e.target.value)} required />
           </div>
           <div>
             <label className="mb-1 block text-sm">Domains (comma separated)</label>

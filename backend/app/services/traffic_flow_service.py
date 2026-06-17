@@ -1,3 +1,4 @@
+import shutil
 import socket
 import subprocess
 import uuid
@@ -56,23 +57,38 @@ class TrafficFlowService:
             message=f"No certificate at {cert_path}. Issue cert before enabling force_https.",
         )
 
+    def _isolated_nginx_conf(self, test_dir: Path, site_path: Path) -> str:
+        pid_path = test_dir / "nginx.pid"
+        error_log = test_dir / "error.log"
+        for subdir in ("body", "proxy", "fastcgi", "uwsgi", "scgi"):
+            (test_dir / subdir).mkdir(parents=True, exist_ok=True)
+        return (
+            f"pid {pid_path};\n"
+            f"error_log {error_log} warn;\n"
+            f"events {{ worker_connections 1024; }}\n"
+            f"http {{\n"
+            f"    client_body_temp_path {test_dir / 'body'};\n"
+            f"    proxy_temp_path {test_dir / 'proxy'};\n"
+            f"    fastcgi_temp_path {test_dir / 'fastcgi'};\n"
+            f"    uwsgi_temp_path {test_dir / 'uwsgi'};\n"
+            f"    scgi_temp_path {test_dir / 'scgi'};\n"
+            f"    include {site_path};\n"
+            f"}}\n"
+        )
+
     def test_config_syntax(self, app: ProxyAppBase) -> TrafficFlowCheck:
-        test_dir = self.settings.data_dir / "config-tests"
-        test_dir.mkdir(parents=True, exist_ok=True)
+        test_root = self.settings.data_dir / "config-tests"
+        test_root.mkdir(parents=True, exist_ok=True)
         test_id = uuid.uuid4().hex
-        site_path = test_dir / f"test-{test_id}.conf"
-        nginx_conf = test_dir / f"nginx-{test_id}.conf"
+        test_dir = test_root / test_id
+        test_dir.mkdir(parents=True, exist_ok=True)
+        site_path = test_dir / "site.conf"
+        nginx_conf = test_dir / "nginx.conf"
 
         try:
             rendered = self.writer.render_config(app)
             site_path.write_text(rendered, encoding="utf-8")
-            pid_path = test_dir / f"nginx-{test_id}.pid"
-            nginx_conf.write_text(
-                f"pid {pid_path};\n"
-                f"events {{ worker_connections 1024; }}\n"
-                f"http {{\n    include {site_path};\n}}\n",
-                encoding="utf-8",
-            )
+            nginx_conf.write_text(self._isolated_nginx_conf(test_dir, site_path), encoding="utf-8")
             result = subprocess.run(
                 self._cmd(self.NGINX_BIN, "-t", "-c", str(nginx_conf)),
                 capture_output=True,
@@ -98,8 +114,7 @@ class TrafficFlowService:
                 message=f"Failed to validate config: {exc}",
             )
         finally:
-            site_path.unlink(missing_ok=True)
-            nginx_conf.unlink(missing_ok=True)
+            shutil.rmtree(test_dir, ignore_errors=True)
 
     def test_traffic_flow(self, app: ProxyAppBase) -> TrafficFlowTestResult:
         checks = [

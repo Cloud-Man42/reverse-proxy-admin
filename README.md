@@ -26,14 +26,45 @@ Production-ready web administration tool for managing Nginx reverse proxy config
 - Python 3.12+
 - Node.js 20+ (build only)
 
-## Installation on Ubuntu 24.04
+## Quick install from GitHub (Ubuntu 24.04)
+
+On a fresh Linux server with `git` and `sudo`:
+
+```bash
+git clone https://github.com/Cloud-Man42/reverse-proxy-admin.git
+cd reverse-proxy-admin
+sudo bash deploy/install-from-repo.sh
+```
+
+This runs `deploy/install-prerequisites.sh` first. That script is **idempotent** and only installs missing packages such as Nginx, Certbot, Python venv tooling, Node.js, `htpasswd`, OpenSSL, and UFW.
+
+Then configure the admin password and network settings:
+
+```bash
+sudo nano /etc/nginx-admin/env
+sudo systemctl restart nginx-admin
+```
+
+Install only OS prerequisites (without deploying the app):
+
+```bash
+sudo bash deploy/install-prerequisites.sh
+```
+
+## Installation on Ubuntu 24.04 (manual)
 
 ### 1. Install system packages
 
 ```bash
+sudo bash deploy/install-prerequisites.sh
+```
+
+Or manually:
+
+```bash
 sudo apt update
 sudo apt install -y nginx certbot python3-certbot-nginx python3.12-venv python3-pip \
-  apache2-utils nodejs npm git openssl
+  apache2-utils nodejs npm git openssl rsync ufw
 ```
 
 ### 2. Create service user and directories
