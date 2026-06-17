@@ -1,0 +1,12 @@
+# Install to /etc/sudoers.d/nginx-admin with chmod 440
+# visudo -cf /etc/sudoers.d/nginx-admin
+
+Defaults:nginx-admin !requiretty
+
+nginx-admin ALL=(root) NOPASSWD: /usr/sbin/nginx -t
+nginx-admin ALL=(root) NOPASSWD: /usr/sbin/nginx -t -c *
+nginx-admin ALL=(root) NOPASSWD: /bin/systemctl is-active nginx
+nginx-admin ALL=(root) NOPASSWD: /bin/systemctl status nginx --no-pager
+nginx-admin ALL=(root) NOPASSWD: /bin/systemctl reload nginx
+nginx-admin ALL=(root) NOPASSWD: /usr/bin/certbot *
+nginx-admin ALL=(root) NOPASSWD: /usr/sbin/ufw status *

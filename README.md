@@ -1,0 +1,216 @@
+# Nginx Reverse Proxy Admin UI
+
+Production-ready web administration tool for managing Nginx reverse proxy configurations, Let's Encrypt certificates, and operational tasks on Ubuntu 24.04.
+
+## Features
+
+- Manage reverse proxy apps (create, edit, delete, enable/disable)
+- Safe config workflow: backup before write, `nginx -t` before reload, automatic rollback on failure
+- Certificate management via Certbot
+- Error/access log viewer with domain filter
+- Session authentication with Argon2, CSRF protection, login rate limiting, IP allowlist
+- Audit log for all mutating actions
+
+## Architecture
+
+- Backend: FastAPI on `127.0.0.1:8080`
+- Frontend: React + TypeScript + Tailwind (served by backend in production)
+- Database: SQLite in `/var/lib/reverse-proxy-admin/app.db`
+- Backups: `/var/lib/reverse-proxy-admin/backups/`
+
+## Requirements
+
+- Ubuntu 24.04
+- Nginx installed and running
+- Certbot with nginx plugin
+- Python 3.12+
+- Node.js 20+ (build only)
+
+## Installation on Ubuntu 24.04
+
+### 1. Install system packages
+
+```bash
+sudo apt update
+sudo apt install -y nginx certbot python3-certbot-nginx python3.12-venv python3-pip \
+  apache2-utils nodejs npm git openssl
+```
+
+### 2. Create service user and directories
+
+```bash
+sudo useradd --system --home /opt/reverse-proxy-admin --shell /usr/sbin/nologin nginx-admin
+sudo mkdir -p /opt/reverse-proxy-admin /var/lib/reverse-proxy-admin/backups /etc/nginx-admin /etc/nginx/.htpasswd
+sudo chown -R nginx-admin:nginx-admin /var/lib/reverse-proxy-admin
+```
+
+### 3. Deploy application files
+
+```bash
+sudo cp -r reverse-proxy-admin /opt/
+sudo chown -R nginx-admin:nginx-admin /opt/reverse-proxy-admin
+```
+
+### 4. Backend setup
+
+```bash
+cd /opt/reverse-proxy-admin/backend
+sudo -u nginx-admin python3 -m venv .venv
+sudo -u nginx-admin .venv/bin/pip install -r requirements.txt
+```
+
+### 5. Configure environment
+
+```bash
+sudo cp /opt/reverse-proxy-admin/deploy/env.example /etc/nginx-admin/env
+sudo chmod 600 /etc/nginx-admin/env
+sudo nano /etc/nginx-admin/env
+```
+
+Set at minimum:
+
+- `SECRET_KEY` (generate with `openssl rand -hex 32`)
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD` (never commit this value)
+- `CERTBOT_EMAIL`
+- `ALLOWED_IPS` (your internal subnet, e.g. `10.0.0.0/24`)
+
+### 6. Build frontend
+
+```bash
+cd /opt/reverse-proxy-admin/frontend
+npm ci
+npm run build
+```
+
+Ensure `FRONTEND_DIST` points to `/opt/reverse-proxy-admin/frontend/dist` (default).
+
+### 7. Grant least-privilege sudo
+
+```bash
+sudo cp /opt/reverse-proxy-admin/deploy/sudoers/nginx-admin /etc/sudoers.d/nginx-admin
+sudo chmod 440 /etc/sudoers.d/nginx-admin
+sudo visudo -cf /etc/sudoers.d/nginx-admin
+```
+
+Allowed commands for `nginx-admin`:
+
+- `/usr/sbin/nginx -t`
+- `/usr/sbin/nginx -t -c *`
+- `/bin/systemctl is-active nginx`
+- `/bin/systemctl status nginx --no-pager`
+- `/bin/systemctl reload nginx`
+- `/usr/bin/certbot *`
+
+### 8. Grant nginx path permissions
+
+Ensure `nginx-admin` can write site configs:
+
+```bash
+sudo chown -R nginx-admin:nginx-admin /etc/nginx/sites-available /etc/nginx/sites-enabled /etc/nginx/.htpasswd
+```
+
+Alternatively, use ACLs if you prefer keeping root ownership.
+
+### 9. Install systemd service
+
+```bash
+sudo cp /opt/reverse-proxy-admin/deploy/systemd/nginx-admin.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now nginx-admin
+```
+
+### 10. Expose UI internally via Nginx
+
+```bash
+sudo cp /opt/reverse-proxy-admin/deploy/nginx/admin-ui.conf.example /etc/nginx/sites-available/admin-ui.conf
+sudo ln -sf /etc/nginx/sites-available/admin-ui.conf /etc/nginx/sites-enabled/admin-ui.conf
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Access internally, for example: `https://<your-server-ip>:8443`
+
+### Firewall (UFW)
+
+If UFW is active, allow the admin UI port from your internal subnet:
+
+```bash
+sudo ufw allow from 10.0.0.0/24 to any port 8443 proto tcp comment 'Nginx Admin UI'
+sudo ufw status
+```
+
+## Development
+
+### Backend
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+export ADMIN_PASSWORD=test-password
+export DATABASE_URL=sqlite:///./dev.db
+export USE_SUDO=false
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8080
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Tests
+
+```bash
+cd backend
+pytest
+```
+
+## Backup and rollback
+
+### Automatic rollback
+
+Every config write/delete:
+
+1. Creates a timestamped backup in `/var/lib/reverse-proxy-admin/backups/`
+2. Applies the change
+3. Runs `nginx -t`
+4. Rolls back automatically if test fails
+5. Reloads Nginx only when test succeeds
+
+### Manual restore
+
+```bash
+sudo cp /var/lib/reverse-proxy-admin/backups/TIMESTAMP_app.conf /etc/nginx/sites-available/app.conf
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+## Security notes
+
+- Do not expose the admin UI publicly; keep it on internal IP/VPN only
+- Use strong `SECRET_KEY` and admin password
+- Review `ALLOWED_IPS` regularly
+- Audit log available at `GET /api/audit`
+- All subprocess calls use argument lists (`shell=False`)
+- Input validation blocks shell injection patterns
+
+## API overview
+
+- `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
+- `GET/POST/PUT/DELETE /api/proxies`
+- `POST /api/proxies/{id}/enable|disable`
+- `GET /api/certificates`, `POST /api/certificates`, renew/dry-run actions
+- `GET /api/logs/error`, `GET /api/logs/access`
+- `GET /api/dashboard`, `GET /api/system/health`, nginx test/reload/status
+
+## Troubleshooting
+
+- Service logs: `journalctl -u nginx-admin -f`
+- Permission errors: verify ownership/ACLs on nginx paths
+- Certbot failures: ensure DNS/HTTP challenge reachable for public domains
+- CSRF errors: ensure cookies are sent (`credentials: include`) and frontend uses same origin/proxy

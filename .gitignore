@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+!.env.example
+dev.db
+*.db
+.pytest_cache/
+dist/
+node_modules/
+*.tsbuildinfo
+Thumbs.db
+.DS_Store

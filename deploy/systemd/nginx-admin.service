@@ -1,0 +1,22 @@
+[Unit]
+Description=Nginx Reverse Proxy Admin API
+After=network.target
+
+[Service]
+Type=simple
+User=nginx-admin
+Group=nginx-admin
+WorkingDirectory=/opt/reverse-proxy-admin/backend
+EnvironmentFile=/etc/nginx-admin/env
+ExecStart=/opt/reverse-proxy-admin/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8080
+Restart=on-failure
+RestartSec=5
+# sudo NOPASSWD (nginx -t, systemctl reload) requires setuid elevation; do not enable NoNewPrivileges.
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/etc/nginx/sites-available /etc/nginx/sites-enabled /var/log/nginx /etc/letsencrypt/live /var/lib/reverse-proxy-admin /etc/nginx/.htpasswd /run
+ReadOnlyPaths=/etc/nginx /usr/sbin /bin /usr/bin
+
+[Install]
+WantedBy=multi-user.target
