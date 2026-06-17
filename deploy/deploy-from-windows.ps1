@@ -1,8 +1,9 @@
 # Deploy reverse-proxy-admin to Ubuntu from Windows (interactive SSH password prompt)
-# Usage: powershell -ExecutionPolicy Bypass -File deploy\deploy-from-windows.ps1 -Server user@your-server
+# Usage: powershell -ExecutionPolicy Bypass -File deploy\deploy-from-windows.ps1
+#        powershell -ExecutionPolicy Bypass -File deploy\deploy-from-windows.ps1 -Server hm@192.168.50.53
 
 param(
-    [string]$Server = "user@your-server"
+    [string]$Server = "hm@192.168.50.53"
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,7 +12,7 @@ $ProjectRoot = (Resolve-Path "$PSScriptRoot\..").Path
 Write-Host "Project root: $ProjectRoot"
 Write-Host "Target server: $Server"
 Write-Host ""
-Write-Host "You will be prompted for your SSH password twice (upload + remote install)."
+Write-Host "You will be prompted for your SSH password (upload + remote full-sync)."
 Write-Host ""
 
 $Archive = Join-Path $env:TEMP "reverse-proxy-admin.tgz"
@@ -33,21 +34,19 @@ finally {
 Write-Host "Uploading archive..."
 scp $Archive "${Server}:/tmp/reverse-proxy-admin.tgz"
 
-Write-Host "Running remote install (sudo password may be required on server)..."
+Write-Host "Running remote full-sync (sudo password may be required on server)..."
 ssh $Server @'
 set -e
 cd /tmp
 rm -rf reverse-proxy-admin
 tar -xzf reverse-proxy-admin.tgz
-chmod +x reverse-proxy-admin/deploy/install.sh
-sudo bash reverse-proxy-admin/deploy/install.sh
+find reverse-proxy-admin -name "*.sh" -exec sed -i 's/\r$//' {} +
+chmod +x reverse-proxy-admin/deploy/full-sync.sh
+sudo bash reverse-proxy-admin/deploy/full-sync.sh /tmp/reverse-proxy-admin
 '@
 
 Write-Host ""
-Write-Host "Next steps on server:"
-Write-Host "  1. ssh $Server"
-Write-Host "  2. sudo nano /etc/nginx-admin/env"
-Write-Host "     Set ADMIN_USERNAME, ADMIN_PASSWORD, ALLOWED_IPS, and SERVER_PUBLIC_IP"
-Write-Host "  3. sudo systemctl restart nginx-admin"
-Write-Host "  4. Open the admin UI on https://<your-server-ip>:8443 from your internal network"
+Write-Host "Deploy complete."
+Write-Host "Admin UI: https://192.168.50.53:8443"
+Write-Host "Run flow diagnostics: ssh $Server 'sudo bash /opt/reverse-proxy-admin/deploy/diagnose-flow.sh code-tst sora.inacloud.net'"
 Write-Host ""
