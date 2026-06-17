@@ -15,8 +15,9 @@ RestartSec=5
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/etc/nginx/sites-available /etc/nginx/sites-enabled /var/log/nginx /etc/letsencrypt /var/lib/reverse-proxy-admin /etc/nginx/.htpasswd /run
-ReadOnlyPaths=/etc/nginx /usr/sbin /bin /usr/bin
+# Certbot --nginx needs to lock /etc/nginx; do not mark /etc/nginx read-only.
+ReadWritePaths=/etc/nginx /var/log/nginx /etc/letsencrypt /var/lib/reverse-proxy-admin /run
+ReadOnlyPaths=/usr/sbin /bin /usr/bin
 
 [Install]
 WantedBy=multi-user.target
