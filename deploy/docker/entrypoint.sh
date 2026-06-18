@@ -31,6 +31,8 @@ if [[ ! -L /etc/nginx/sites-enabled/admin-ui.conf ]]; then
   ln -sf /etc/nginx/sites-available/admin-ui.conf /etc/nginx/sites-enabled/admin-ui.conf
 fi
 
+bash /app/deploy/setup-certbot-renewal.sh /app
+
 nginx -t
 
 exec "$@"

@@ -1,0 +1,8 @@
+[Unit]
+Description=Renew Let's Encrypt certificates (reverse-proxy-admin)
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/reverse-proxy-admin/deploy/certbot-renew.sh

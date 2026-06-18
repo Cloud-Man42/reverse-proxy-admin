@@ -30,6 +30,7 @@ RUN apt-get update \
         openssl \
         supervisor \
         curl \
+        cron \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -44,11 +45,13 @@ COPY --from=frontend-build /build/dist /app/frontend/dist
 COPY deploy/nginx/proxy-debug-log.conf /etc/nginx/conf.d/proxy-debug-log.conf
 COPY deploy/docker/nginx.conf /etc/nginx/nginx.conf
 COPY deploy/docker/admin-ui.conf /app/deploy/docker/admin-ui.conf
+COPY deploy/docker/certbot-renew.cron /etc/cron.d/certbot-renew
 COPY deploy/docker/supervisord.conf /etc/supervisor/conf.d/reverse-proxy-admin.conf
 COPY deploy/docker/entrypoint.sh /entrypoint.sh
 
 RUN sed -i 's/\r$//' /entrypoint.sh \
     && chmod +x /entrypoint.sh \
+    && chmod 644 /etc/cron.d/certbot-renew \
     && mkdir -p /var/lib/reverse-proxy-admin/backups \
         /var/lib/reverse-proxy-admin/certbot/work \
         /var/lib/reverse-proxy-admin/certbot/logs \

@@ -94,6 +94,9 @@ sed -i 's/\r$//' /etc/nginx/conf.d/proxy-debug-log.conf
 nginx -t
 systemctl reload nginx
 
+echo "==> Configuring automatic certificate renewal"
+bash "${APP_ROOT}/deploy/setup-certbot-renewal.sh" "${APP_ROOT}"
+
 echo "==> Configuring firewall for admin UI"
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   # Replace 10.0.0.0/24 with your internal admin subnet(s)

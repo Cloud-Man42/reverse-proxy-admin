@@ -100,6 +100,8 @@ Data is stored in Docker volumes (`app-data`, `letsencrypt`, `nginx-sites-availa
 
 Inside Docker, `NGINX_RELOAD_MODE=signal` and `USE_SUDO=false` — no systemd or sudo required.
 
+Let's Encrypt certificates renew automatically twice daily (`certbot-renew.timer` on native install, cron in Docker). Nginx reloads after a successful renewal.
+
 ## Installation on Ubuntu 24.04 (manual)
 
 ### 1. Install system packages
@@ -302,6 +304,8 @@ sudo systemctl reload nginx
 ## Troubleshooting
 
 - Service logs: `journalctl -u nginx-admin -f`
+- Certificate renewal timer: `systemctl status certbot-renew.timer` and `journalctl -u certbot-renew.service`
+- Manual renewal test: `sudo bash /opt/reverse-proxy-admin/deploy/certbot-renew.sh` or `sudo certbot renew --dry-run`
 - Permission errors: verify ownership/ACLs on nginx paths
 - Certbot failures: ensure DNS/HTTP challenge reachable for public domains
 - CSRF errors: ensure cookies are sent (`credentials: include`) and frontend uses same origin/proxy
