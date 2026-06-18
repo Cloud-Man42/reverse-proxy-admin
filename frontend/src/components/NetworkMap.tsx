@@ -2,9 +2,7 @@ import { memo, useCallback, useMemo, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Background,
-  Controls,
   Handle,
-  MiniMap,
   Node,
   NodeProps,
   Position,
@@ -176,16 +174,6 @@ export function NetworkMap() {
         proOptions={{ hideAttribution: true }}
       >
         <Background gap={20} size={1} color="rgba(255,255,255,0.05)" />
-        <Controls />
-        <MiniMap
-          nodeColor={(node) => {
-            const status = (node.data as MapNodeData)?.status;
-            if (status === "active") return "#10b981";
-            if (status === "warning") return "#f59e0b";
-            return "#64748b";
-          }}
-          maskColor="rgba(0,0,0,0.6)"
-        />
       </ReactFlow>
     </div>
   );
