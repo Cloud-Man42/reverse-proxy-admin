@@ -1,9 +1,9 @@
 # Deploy reverse-proxy-admin to Ubuntu from Windows (interactive SSH password prompt)
 # Usage: powershell -ExecutionPolicy Bypass -File deploy\deploy-from-windows.ps1
-#        powershell -ExecutionPolicy Bypass -File deploy\deploy-from-windows.ps1 -Server hm@192.168.50.54
+#        powershell -ExecutionPolicy Bypass -File deploy\deploy-from-windows.ps1 -Server hm@192.168.50.53
 
 param(
-    [string]$Server = "hm@192.168.50.54"
+    [string]$Server = "hm@192.168.50.53"
 )
 
 $ErrorActionPreference = "Stop"
@@ -47,6 +47,6 @@ sudo bash reverse-proxy-admin/deploy/full-sync.sh /tmp/reverse-proxy-admin
 
 Write-Host ""
 Write-Host "Deploy complete."
-Write-Host "Admin UI: https://192.168.50.54:8443"
+Write-Host "Admin UI: https://192.168.50.53:8443"
 Write-Host "Run flow diagnostics: ssh $Server 'sudo bash /opt/reverse-proxy-admin/deploy/diagnose-flow.sh code-tst sora.inacloud.net'"
 Write-Host ""
