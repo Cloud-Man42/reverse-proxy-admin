@@ -40,7 +40,7 @@ def test_validate_slug():
 
 
 def test_validate_certbot_email_accepts_real_address():
-    assert validate_certbot_email("Admin@Inacloud.se") == "admin@inacloud.se"
+    assert validate_certbot_email("Ops@Acme-Labs.net") == "ops@acme-labs.net"
 
 
 def test_validate_certbot_email_rejects_placeholder():

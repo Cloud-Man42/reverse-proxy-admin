@@ -103,14 +103,9 @@ if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   ufw allow from 10.0.0.0/24 to any port 8443 proto tcp comment "Nginx Admin UI" || true
 fi
 
-DEFAULT_ADMIN_USERNAME="$(grep '^ADMIN_USERNAME=' "${ENV_FILE}" | cut -d= -f2- | tr -d '"')"
-DEFAULT_ADMIN_PASSWORD="$(grep '^ADMIN_PASSWORD=' "${ENV_FILE}" | cut -d= -f2- | tr -d '"')"
-
 echo
 echo "Deployment complete."
-echo "Default admin login (change immediately after first login):"
-echo "  Username: ${DEFAULT_ADMIN_USERNAME}"
-echo "  Password: ${DEFAULT_ADMIN_PASSWORD}"
-echo "Change password in Admin UI → Users, or edit ${ENV_FILE} before first start on a new server."
+echo "Admin login: use ADMIN_USERNAME from ${ENV_FILE} (password set in the same file)."
+echo "Change the password in Admin UI → Users before production use."
 echo "Configure TLS in /etc/nginx/sites-available/admin-ui.conf if needed."
 echo "Open https://<your-server-ip>:8443 from your internal network"

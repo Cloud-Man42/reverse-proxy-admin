@@ -2,6 +2,10 @@
 
 Production-ready web administration tool for managing Nginx reverse proxy configurations, Let's Encrypt certificates, and operational tasks on Ubuntu 24.04.
 
+## Documentation
+
+- **[Proxy Setup Manual](docs/PROXY_SETUP_MANUAL.md)** — complete guide to creating proxies in the Admin UI, traffic flow, HTTPS, and troubleshooting
+
 ## Features
 
 - Manage reverse proxy apps (create, edit, delete, enable/disable)
@@ -38,14 +42,7 @@ sudo bash deploy/install-from-repo.sh
 
 This runs `deploy/install-prerequisites.sh` first. That script is **idempotent** and only installs missing packages such as Nginx, Certbot, Python venv tooling, Node.js, `htpasswd`, OpenSSL, and UFW.
 
-After install, log in with the **default credentials** (change immediately):
-
-| Field | Default |
-|-------|---------|
-| Username | `admin` |
-| Password | `ChangeMeAfterInstall!` |
-
-Change the password under **Admin UI → Users** (edit the admin user). On a fresh server you can also set `ADMIN_PASSWORD` in `/etc/nginx-admin/env` before the first service start.
+After install, log in with the administrator credentials from `deploy/env.example` and change the password under **Admin UI → Users** before production use.
 
 Adjust network settings if needed:
 
@@ -86,7 +83,7 @@ docker compose up -d --build
 | 443 | HTTPS reverse proxy |
 | 8443 | Admin UI (HTTPS, internal use) |
 
-Default login: `admin` / `ChangeMeAfterInstall!` — change under **Users** immediately.
+Log in with the credentials in `.env` and change the password under **Users** immediately.
 
 Useful commands:
 
@@ -152,7 +149,7 @@ sudo nano /etc/nginx-admin/env
 Set at minimum:
 
 - `SECRET_KEY` (generate with `openssl rand -hex 32`; `install.sh` generates this automatically)
-- `ADMIN_USERNAME` / `ADMIN_PASSWORD` — defaults are `admin` / `ChangeMeAfterInstall!` in `deploy/env.example`; change after first login
+- `ADMIN_USERNAME` / `ADMIN_PASSWORD` — set in `deploy/env.example` before first login
 - `CERTBOT_EMAIL`
 - `ALLOWED_IPS` (your internal subnet, e.g. `10.0.0.0/24`)
 

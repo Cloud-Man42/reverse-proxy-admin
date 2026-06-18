@@ -12,7 +12,7 @@ def test_resolve_contact_email_rejects_placeholder(temp_settings):
 
 def test_resolve_contact_email_accepts_real_address(temp_settings):
     ops = CertbotOps(temp_settings)
-    assert ops.resolve_contact_email("admin@inacloud.se") == "admin@inacloud.se"
+    assert ops.resolve_contact_email("ops@acme-labs.net") == "ops@acme-labs.net"
 
 
 def test_certbot_cmd_includes_config_dirs(temp_settings):

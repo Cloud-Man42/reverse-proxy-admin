@@ -27,20 +27,20 @@ def test_certificate_exists_when_files_readable(tmp_path):
 def test_domain_has_certificate_in_output_matches_domains_line():
     output = """
 Found the following certs:
-  Certificate Name: sora.inacloud.net
-    Domains: sora.inacloud.net
+  Certificate Name: portal.example.com
+    Domains: portal.example.com
     Expiry Date: 2026-09-15 12:00:00+00:00 (VALID: 89 days)
 """
-    assert domain_has_certificate_in_output("sora.inacloud.net", output) is True
+    assert domain_has_certificate_in_output("portal.example.com", output) is True
     assert domain_has_certificate_in_output("missing.example.com", output) is False
 
 
 def test_domain_has_certificate_in_output_matches_certificate_path_line():
     output = """
-  Certificate Name: sora.inacloud.net-0001
-    Certificate Path: /etc/letsencrypt/live/sora.inacloud.net/fullchain.pem
+  Certificate Name: portal.example.com-0001
+    Certificate Path: /etc/letsencrypt/live/portal.example.com/fullchain.pem
 """
-    assert domain_has_certificate_in_output("sora.inacloud.net", output) is True
+    assert domain_has_certificate_in_output("portal.example.com", output) is True
 
 
 def test_certificate_exists_uses_sudo_test_when_unreadable(tmp_path):
@@ -50,7 +50,7 @@ def test_certificate_exists_uses_sudo_test_when_unreadable(tmp_path):
         certbot_config_dir=tmp_path / "letsencrypt",
         use_sudo=True,
     )
-    domain = "sora.inacloud.net"
+    domain = "portal.example.com"
     with patch("pathlib.Path.is_file", return_value=False):
         with patch("app.services.cert_paths._sudo_path_is_file", return_value=True):
             with patch("app.services.cert_paths.run_certbot_certificates") as mock_run:
@@ -64,8 +64,8 @@ def test_certificate_exists_uses_sudo_test_when_unreadable(tmp_path):
         certbot_logs_dir=tmp_path / "data" / "certbot" / "logs",
         use_sudo=True,
     )
-    domain = "sora.inacloud.net"
-    certbot_output = "Certificate Name: sora.inacloud.net\n  Domains: sora.inacloud.net\n"
+    domain = "portal.example.com"
+    certbot_output = "Certificate Name: portal.example.com\n  Domains: portal.example.com\n"
     with patch("pathlib.Path.is_file", return_value=False):
         with patch("app.services.cert_paths.run_certbot_certificates", return_value=(0, certbot_output)):
             assert certificate_exists(settings, domain) is True

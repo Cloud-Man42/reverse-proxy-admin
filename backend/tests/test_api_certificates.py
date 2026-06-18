@@ -17,7 +17,7 @@ def test_certificate_settings(client, auth_session):
 def test_issue_certificate_failure(mock_issue, client, auth_session):
     response = client.post(
         "/api/certificates",
-        json={"domain": "valid.example.com", "email": "admin@inacloud.se"},
+        json={"domain": "valid.example.com", "email": "ops@acme-labs.net"},
         cookies=auth_session["cookies"],
         headers=auth_session["headers"],
     )

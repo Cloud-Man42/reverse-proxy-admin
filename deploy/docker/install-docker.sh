@@ -32,5 +32,5 @@ docker compose up -d --build
 echo
 echo "Reverse proxy admin is running in Docker."
 echo "Admin UI: https://<host-ip>:8443"
-echo "Default login: admin / ChangeMeAfterInstall! (change under Users)"
+echo "Log in with ADMIN_USERNAME / ADMIN_PASSWORD from .env (change under Users immediately)."
 echo "Logs: docker compose logs -f reverse-proxy"

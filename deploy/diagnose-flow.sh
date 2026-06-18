@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-PROXY_ID="${1:-code-tst}"
-DOMAIN="${2:-sora.inacloud.net}"
+PROXY_ID="${1:-portal-app}"
+DOMAIN="${2:-portal.example.com}"
 APP_ROOT="/opt/reverse-proxy-admin"
 VENV="${APP_ROOT}/backend/.venv/bin/python"
 
