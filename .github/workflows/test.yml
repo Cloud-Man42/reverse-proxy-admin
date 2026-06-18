@@ -22,6 +22,19 @@ jobs:
         env:
           ADMIN_PASSWORD: test-password
           ADMIN_USERNAME: admin
+          USE_SUDO: "false"
+          DATABASE_URL: sqlite:////tmp/reverse-proxy-admin-ci/test.db
+          DATA_DIR: /tmp/reverse-proxy-admin-ci/data
+          BACKUP_DIR: /tmp/reverse-proxy-admin-ci/backups
+          CERTBOT_WORK_DIR: /tmp/reverse-proxy-admin-ci/certbot/work
+          CERTBOT_LOGS_DIR: /tmp/reverse-proxy-admin-ci/certbot/logs
+          NGINX_SITES_AVAILABLE: /tmp/reverse-proxy-admin-ci/sites-available
+          NGINX_SITES_ENABLED: /tmp/reverse-proxy-admin-ci/sites-enabled
+          HTPASSWD_DIR: /tmp/reverse-proxy-admin-ci/htpasswd
+          NGINX_ERROR_LOG: /tmp/reverse-proxy-admin-ci/logs/error.log
+          NGINX_ACCESS_LOG: /tmp/reverse-proxy-admin-ci/logs/access.log
+          LETSENCRYPT_LIVE: /tmp/reverse-proxy-admin-ci/letsencrypt/live
+          CERTBOT_CONFIG_DIR: /tmp/reverse-proxy-admin-ci/letsencrypt
         run: pytest
 
   frontend:

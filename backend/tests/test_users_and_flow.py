@@ -18,12 +18,7 @@ def test_user_permissions():
     assert editor.has_edit() and not editor.has_create()
 
 
-def test_traffic_flow_validation(tmp_path):
-    settings = Settings(
-        data_dir=tmp_path / "data",
-        use_sudo=False,
-        server_public_ip="203.0.113.1",
-    )
+def test_traffic_flow_validation(temp_settings):
     app = ProxyAppCreate(
         name="demo",
         domains=["demo.example.com"],
@@ -32,7 +27,7 @@ def test_traffic_flow_validation(tmp_path):
         target_port=1,
         enabled=True,
     )
-    result = TrafficFlowService(settings).test_traffic_flow(app)
+    result = TrafficFlowService(temp_settings).test_traffic_flow(app)
     assert len(result.checks) >= 4
     assert any(check.name == "upstream_connectivity" for check in result.checks)
     assert any(check.name == "nginx_syntax" for check in result.checks)

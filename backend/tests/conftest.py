@@ -4,12 +4,41 @@ from pathlib import Path
 from typing import Generator
 
 import pytest
+
+# Configure writable paths before importing app modules (db.py reads settings at import time).
+_test_root = Path(tempfile.gettempdir()) / "reverse-proxy-admin-pytest"
+for sub in (
+    "data",
+    "backups",
+    "certbot/work",
+    "certbot/logs",
+    "sites-available",
+    "sites-enabled",
+    "htpasswd",
+    "logs",
+    "letsencrypt/live",
+):
+    (_test_root / sub).mkdir(parents=True, exist_ok=True)
+
+os.environ["ADMIN_PASSWORD"] = "test-password"
+os.environ["ADMIN_USERNAME"] = "admin"
+os.environ["USE_SUDO"] = "false"
+os.environ["DATABASE_URL"] = f"sqlite:///{(_test_root / 'test.db').as_posix()}"
+os.environ["DATA_DIR"] = str(_test_root / "data")
+os.environ["BACKUP_DIR"] = str(_test_root / "backups")
+os.environ["CERTBOT_WORK_DIR"] = str(_test_root / "certbot" / "work")
+os.environ["CERTBOT_LOGS_DIR"] = str(_test_root / "certbot" / "logs")
+os.environ["NGINX_SITES_AVAILABLE"] = str(_test_root / "sites-available")
+os.environ["NGINX_SITES_ENABLED"] = str(_test_root / "sites-enabled")
+os.environ["HTPASSWD_DIR"] = str(_test_root / "htpasswd")
+os.environ["NGINX_ERROR_LOG"] = str(_test_root / "logs" / "error.log")
+os.environ["NGINX_ACCESS_LOG"] = str(_test_root / "logs" / "access.log")
+os.environ["LETSENCRYPT_LIVE"] = str(_test_root / "letsencrypt" / "live")
+os.environ["CERTBOT_CONFIG_DIR"] = str(_test_root / "letsencrypt")
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
-os.environ.setdefault("ADMIN_PASSWORD", "test-password")
-os.environ.setdefault("ADMIN_USERNAME", "admin")
 
 from app.config import Settings, get_settings
 from app.db import Base, get_db
