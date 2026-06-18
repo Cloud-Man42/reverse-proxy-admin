@@ -60,6 +60,46 @@ Install only OS prerequisites (without deploying the app):
 sudo bash deploy/install-prerequisites.sh
 ```
 
+## Docker install (recommended for new deployments)
+
+Runs Nginx, Certbot, and the admin API in one container with persistent volumes for configs, certificates, and data.
+
+Requirements on the host: Docker Engine + Docker Compose plugin.
+
+```bash
+git clone https://github.com/Cloud-Man42/reverse-proxy-admin.git
+cd reverse-proxy-admin
+bash deploy/docker/install-docker.sh
+```
+
+Or manually:
+
+```bash
+cp deploy/docker/env.docker.example .env
+# edit .env — set SECRET_KEY, CERTBOT_EMAIL, SERVER_PUBLIC_IP
+docker compose up -d --build
+```
+
+| Port | Purpose |
+|------|---------|
+| 80 | HTTP reverse proxy + ACME challenges |
+| 443 | HTTPS reverse proxy |
+| 8443 | Admin UI (HTTPS, internal use) |
+
+Default login: `admin` / `ChangeMeAfterInstall!` — change under **Users** immediately.
+
+Useful commands:
+
+```bash
+docker compose logs -f reverse-proxy
+docker compose restart reverse-proxy
+docker compose down
+```
+
+Data is stored in Docker volumes (`app-data`, `letsencrypt`, `nginx-sites-available`, etc.). Map host ports 80/443 to this container instead of host nginx when migrating.
+
+Inside Docker, `NGINX_RELOAD_MODE=signal` and `USE_SUDO=false` — no systemd or sudo required.
+
 ## Installation on Ubuntu 24.04 (manual)
 
 ### 1. Install system packages

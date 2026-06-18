@@ -1,0 +1,35 @@
+services:
+  reverse-proxy:
+    build: .
+    image: reverse-proxy-admin:latest
+    container_name: reverse-proxy-admin
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8443:8443"
+    env_file:
+      - .env
+    environment:
+      USE_SUDO: "false"
+      NGINX_RELOAD_MODE: signal
+      HOST: "127.0.0.1"
+      PORT: "8080"
+      FRONTEND_DIST: /app/frontend/dist
+    volumes:
+      - app-data:/var/lib/reverse-proxy-admin
+      - letsencrypt:/etc/letsencrypt
+      - nginx-sites-available:/etc/nginx/sites-available
+      - nginx-sites-enabled:/etc/nginx/sites-enabled
+      - nginx-htpasswd:/etc/nginx/.htpasswd
+      - nginx-logs:/var/log/nginx
+      - admin-ui-ssl:/etc/ssl
+
+volumes:
+  app-data:
+  letsencrypt:
+  nginx-sites-available:
+  nginx-sites-enabled:
+  nginx-htpasswd:
+  nginx-logs:
+  admin-ui-ssl:

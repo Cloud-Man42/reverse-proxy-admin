@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     login_rate_limit_window_seconds: int = 900
 
     use_sudo: bool = True
+    nginx_reload_mode: str = "systemctl"
     frontend_dist: Path = Path("/opt/reverse-proxy-admin/frontend/dist")
 
     server_public_ip: str = "203.0.113.1"
