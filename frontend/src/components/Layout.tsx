@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { APP_NAME, APP_TAGLINE } from "../lib/branding";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../hooks/useAutoRefresh";
 
@@ -29,8 +30,8 @@ export function Layout() {
       <header className="border-b border-white/10 bg-surface-muted">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
           <div>
-            <p className="text-sm text-white/60">Reverse Proxy Admin</p>
-            <h1 className="text-xl font-bold">Nginx Control Panel</h1>
+            <h1 className="text-xl font-bold">{APP_NAME}</h1>
+            <p className="text-sm text-white/60">{APP_TAGLINE}</p>
           </div>
           <div className="flex items-center gap-3">
             <button className="rounded-lg px-3 py-2 text-sm hover:bg-white/10" onClick={toggle}>

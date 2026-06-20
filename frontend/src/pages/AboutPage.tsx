@@ -1,4 +1,5 @@
 import { Card } from "../components/Card";
+import { APP_NAME, APP_TAGLINE } from "../lib/branding";
 
 const features = [
   "Reverse Proxy Management",
@@ -17,12 +18,12 @@ export function AboutPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold">About</h2>
-        <p className="text-white/60">Enterprise Reverse Proxy Management Platform</p>
+        <p className="text-white/60">{APP_TAGLINE}</p>
       </div>
-      <Card title="Reverse Proxy Admin">
-        <p className="text-lg font-semibold">Reverse Proxy Admin</p>
-        <p className="mt-2 text-white/70">Enterprise Reverse Proxy Management Platform</p>
-        <p className="mt-4 text-sm text-white/50">© Acme Labs</p>
+      <Card title={APP_NAME}>
+        <p className="text-lg font-semibold">{APP_NAME}</p>
+        <p className="mt-2 text-white/70">{APP_TAGLINE}</p>
+        <p className="mt-4 text-sm text-white/50">© In a Cloud</p>
       </Card>
       <Card title="Features">
         <ul className="grid gap-2 md:grid-cols-2">

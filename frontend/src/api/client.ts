@@ -36,7 +36,16 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     let detail = "Request failed";
     try {
       const data = await response.json();
-      detail = data.detail || detail;
+      if (Array.isArray(data.detail)) {
+        detail = data.detail
+          .map((item: { msg?: string; loc?: (string | number)[] }) => {
+            const field = item.loc?.filter((part) => typeof part === "string").slice(-1)[0];
+            return field ? `${field}: ${item.msg}` : item.msg || "Validation error";
+          })
+          .join("; ");
+      } else {
+        detail = data.detail || detail;
+      }
     } catch {
       detail = await response.text();
     }

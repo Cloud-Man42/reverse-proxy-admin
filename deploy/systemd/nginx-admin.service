@@ -1,5 +1,5 @@
 [Unit]
-Description=Nginx Reverse Proxy Admin API
+Description=In a Cloud Gateway API
 After=network.target
 
 [Service]

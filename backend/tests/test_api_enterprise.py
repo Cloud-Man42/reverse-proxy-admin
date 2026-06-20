@@ -11,6 +11,25 @@ def test_smtp_settings_hide_password(client, auth_session):
 
 
 @pytest.mark.api
+def test_smtp_settings_allow_empty_sender_email(client, auth_session):
+    response = client.put(
+        "/api/smtp",
+        json={
+            "host": "smtp.example.com",
+            "port": 587,
+            "username": "mailer@acme-labs.net",
+            "sender_name": "Admin",
+            "sender_email": "",
+            "security_mode": "starttls",
+        },
+        cookies=auth_session["cookies"],
+        headers=auth_session["headers"],
+    )
+    assert response.status_code == 200
+    assert response.json()["sender_email"] == ""
+
+
+@pytest.mark.api
 def test_backend_pools_require_auth(client):
     response = client.get("/api/backend-pools")
     assert response.status_code == 401

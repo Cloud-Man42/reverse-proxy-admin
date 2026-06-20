@@ -110,7 +110,7 @@ class ThreatFeedService:
 
     def _write_feed_file(self, feed: ThreatFeed, ips: Set[str]) -> None:
         self.settings.security_dir.mkdir(parents=True, exist_ok=True)
-        lines = [f"# Threat feed: {feed.name}", "# Managed by reverse-proxy-admin"]
+        lines = [f"# Threat feed: {feed.name}", "# Managed by In a Cloud Gateway"]
         for ip in sorted(ips):
             lines.append(f"deny {ip};")
         path = self.settings.security_dir / f"threat-feed-{feed.id}.conf"
@@ -118,7 +118,7 @@ class ThreatFeedService:
 
     def _write_combined_deny_file(self) -> None:
         self.settings.security_dir.mkdir(parents=True, exist_ok=True)
-        lines = ["# Combined threat feed deny list", "# Managed by reverse-proxy-admin"]
+        lines = ["# Combined threat feed deny list", "# Managed by In a Cloud Gateway"]
         feeds = (
             self.db.query(ThreatFeed)
             .filter(ThreatFeed.enabled.is_(True), ThreatFeed.ip_count > 0)

@@ -1,4 +1,4 @@
-# Proxy Setup Manual — Nginx Reverse Proxy Admin UI
+# Proxy Setup Manual — In a Cloud Gateway
 
 This guide explains how to create and manage reverse proxy applications in the Admin UI, and **why** each step works the way it does. It matches the behaviour of the current codebase (nginx site files, Let's Encrypt integration, traffic flow tests, and safe reload workflow).
 
@@ -419,4 +419,4 @@ Before going live with a new public HTTPS app:
 
 ---
 
-*This manual describes the Nginx Reverse Proxy Admin UI. Replace all fictional Acme Labs values with your own infrastructure before use.*
+*This manual describes In a Cloud Gateway. Replace all fictional example values with your own infrastructure before use.*

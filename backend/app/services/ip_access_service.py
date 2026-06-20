@@ -105,7 +105,7 @@ class IpAccessService:
         enabled = [rule for rule in rules if rule.enabled and rule.scope == "global"]
         if not enabled:
             return ""
-        lines = ["# Global IP access rules (managed by reverse-proxy-admin)"]
+        lines = ["# Global IP access rules (managed by In a Cloud Gateway)"]
         for rule in enabled:
             action = "allow" if rule.rule_type == "allow" else "deny"
             lines.append(f"{action} {rule.cidr};")

@@ -61,7 +61,7 @@ class WafService:
             return ""
         mode = "DetectionOnly" if settings.mode == "detection" else "On"
         lines = [
-            f"# WAF settings for {settings.proxy_id} (managed by reverse-proxy-admin)",
+            f"# WAF settings for {settings.proxy_id} (managed by In a Cloud Gateway)",
             f"SecRuleEngine {mode}",
             f"# Profile: {settings.profile}",
         ]

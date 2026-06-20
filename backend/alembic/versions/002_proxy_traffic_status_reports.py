@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "002_proxy_traffic_status_reports"
-down_revision = "001_enterprise_features"
+down_revision = "001_enterprise"
 branch_labels = None
 depends_on = None
 

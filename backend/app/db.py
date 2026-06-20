@@ -64,6 +64,21 @@ def migrate_tenant_columns() -> None:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
 
+def migrate_smtp_columns() -> None:
+    inspector = inspect(engine)
+    if "smtp_settings" not in inspector.get_table_names():
+        return
+    columns = {col["name"] for col in inspector.get_columns("smtp_settings")}
+    additions = {
+        "tls_server_name": "VARCHAR(255) DEFAULT ''",
+        "verify_tls_certificate": "BOOLEAN DEFAULT 1",
+    }
+    with engine.begin() as conn:
+        for name, ddl in additions.items():
+            if name not in columns:
+                conn.execute(text(f"ALTER TABLE smtp_settings ADD COLUMN {name} {ddl}"))
+
+
 def init_db() -> None:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.backup_dir.mkdir(parents=True, exist_ok=True)
@@ -96,6 +111,7 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     migrate_user_columns()
     migrate_tenant_columns()
+    migrate_smtp_columns()
     if settings.alembic_upgrade:
         run_alembic_upgrade()
 
@@ -116,5 +132,7 @@ def run_alembic_upgrade() -> None:
 
         alembic_cfg = Config(str(Path(__file__).resolve().parent.parent / "alembic.ini"))
         command.upgrade(alembic_cfg, "head")
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging
+
+        logging.getLogger(__name__).warning("Alembic upgrade skipped: %s", exc)

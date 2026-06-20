@@ -1,6 +1,6 @@
 # Enterprise Features
 
-Reverse Proxy Admin includes enterprise-grade load balancing, health monitoring, SMTP notifications, and alerting.
+In a Cloud Gateway includes enterprise-grade load balancing, health monitoring, SMTP notifications, and alerting.
 
 ## Load Balancing
 

@@ -11,6 +11,7 @@ from app.security.validators import (
     PathPrefixStr,
     PortInt,
     SlugStr,
+    SmtpSenderEmailStr,
     validate_header_name,
     validate_header_value,
 )
@@ -547,7 +548,9 @@ class SmtpSettingsUpdate(BaseModel):
     starttls_enabled: bool = True
     ssl_enabled: bool = False
     sender_name: str = Field(max_length=255)
-    sender_email: CertbotEmailStr
+    sender_email: SmtpSenderEmailStr = ""
+    tls_server_name: str = Field(default="", max_length=255)
+    verify_tls_certificate: bool = True
 
     @model_validator(mode="after")
     def validate_security_options(self) -> "SmtpSettingsUpdate":
@@ -568,6 +571,8 @@ class SmtpSettingsResponse(BaseModel):
     ssl_enabled: bool
     sender_name: str
     sender_email: str
+    tls_server_name: str
+    verify_tls_certificate: bool
     last_test_status: str
 
 

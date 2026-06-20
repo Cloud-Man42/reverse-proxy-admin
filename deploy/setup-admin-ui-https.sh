@@ -49,7 +49,7 @@ if [[ ! -f "${CERT}" || ! -f "${KEY}" ]]; then
   openssl req -x509 -nodes -days 825 -newkey rsa:2048 \
     -keyout "${KEY}" \
     -out "${CERT}" \
-    -subj "/CN=reverse-proxy-admin/O=Acme Labs"
+    -subj "/CN=reverse-proxy-admin/O=In a Cloud"
   chmod 600 "${KEY}"
 fi
 

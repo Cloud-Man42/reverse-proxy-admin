@@ -89,7 +89,18 @@ def validate_certbot_email(value: str) -> str:
     return value
 
 
+def validate_smtp_sender_email(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return ""
+    value = reject_injection(value).lower()
+    if not EMAIL_REGEX.match(value):
+        raise ValueError("Invalid email address")
+    return value
+
+
 CertbotEmailStr = Annotated[str, AfterValidator(validate_certbot_email)]
+SmtpSenderEmailStr = Annotated[str, AfterValidator(validate_smtp_sender_email)]
 DomainStr = Annotated[str, AfterValidator(lambda v: validate_domain(v))]
 SlugStr = Annotated[str, AfterValidator(validate_slug)]
 PathPrefixStr = Annotated[str, AfterValidator(validate_path_prefix)]

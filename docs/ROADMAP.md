@@ -1,4 +1,4 @@
-# Reverse Proxy Admin — Roadmap
+# In a Cloud Gateway — Roadmap
 
 ## V1 — Core proxy management ✅
 

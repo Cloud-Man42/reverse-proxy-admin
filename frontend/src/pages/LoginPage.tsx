@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { Card } from "../components/Card";
 import { ApiError } from "../api/client";
+import { APP_NAME, APP_TAGLINE } from "../lib/branding";
 
 export function LoginPage() {
   const { username, loading, login } = useAuth();
@@ -30,7 +31,12 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-4">
-      <Card className="w-full max-w-md" title="Sign in">
+      <div className="w-full max-w-md space-y-4">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">{APP_NAME}</h1>
+          <p className="text-sm text-white/60">{APP_TAGLINE}</p>
+        </div>
+      <Card className="w-full" title="Sign in">
         <form className="space-y-4" onSubmit={onSubmit}>
           <div>
             <label className="mb-1 block text-sm">Username</label>
@@ -55,6 +61,7 @@ export function LoginPage() {
           </button>
         </form>
       </Card>
+      </div>
     </div>
   );
 }

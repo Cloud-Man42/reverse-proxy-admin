@@ -86,7 +86,7 @@ export function SettingsPage() {
 function SmtpTab() {
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useToast();
-  const { data } = useQuery({ queryKey: ["smtp"], queryFn: api.getSmtpSettings });
+  const { data, isLoading, isError, error } = useQuery({ queryKey: ["smtp"], queryFn: api.getSmtpSettings });
   const [form, setForm] = useState<Partial<SmtpSettings & { password: string }>>({});
   const [testEmail, setTestEmail] = useState("");
 
@@ -100,12 +100,14 @@ function SmtpTab() {
         security_mode: current.security_mode || "starttls",
         sender_name: current.sender_name || "",
         sender_email: current.sender_email || "",
+        tls_server_name: current.tls_server_name || "",
+        verify_tls_certificate: current.verify_tls_certificate ?? true,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["smtp"] });
       showSuccess("SMTP settings saved");
     },
-    onError: (e) => showError(e instanceof ApiError ? e.message : "Save failed"),
+    onError: (e) => showError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Save failed"),
   });
 
   const testConn = useMutation({
@@ -124,8 +126,14 @@ function SmtpTab() {
 
   return (
     <Card title="SMTP Configuration">
+      {isError ? (
+        <p className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">
+          Failed to load SMTP settings: {error instanceof ApiError ? error.message : "Unknown error"}
+        </p>
+      ) : null}
       <form
         className="grid gap-4 md:grid-cols-2"
+        noValidate
         onSubmit={(e: FormEvent) => {
           e.preventDefault();
           save.mutate();
@@ -153,7 +161,31 @@ function SmtpTab() {
         </label>
         <label className="space-y-1 text-sm">
           Sender Email
-          <input className="w-full" value={current.sender_email || ""} onChange={(e) => setForm({ ...form, sender_email: e.target.value })} />
+          <input
+            type="text"
+            inputMode="email"
+            className="w-full"
+            placeholder="Leave blank to use SMTP username"
+            value={current.sender_email || ""}
+            onChange={(e) => setForm({ ...form, sender_email: e.target.value })}
+          />
+        </label>
+        <label className="space-y-1 text-sm">
+          TLS Server Name
+          <input
+            className="w-full"
+            placeholder="e.g. mail.example.com when host is an IP address"
+            value={current.tls_server_name || ""}
+            onChange={(e) => setForm({ ...form, tls_server_name: e.target.value })}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm md:col-span-2">
+          <input
+            type="checkbox"
+            checked={current.verify_tls_certificate ?? true}
+            onChange={(e) => setForm({ ...form, verify_tls_certificate: e.target.checked })}
+          />
+          Verify TLS certificate (disable only for trusted internal SMTP servers)
         </label>
         <label className="space-y-1 text-sm md:col-span-2">
           Encryption
@@ -176,10 +208,17 @@ function SmtpTab() {
           </select>
         </label>
         <p className="md:col-span-2 text-xs text-white/50">
+          If SMTP host is an IP address (for example 192.168.50.55), enter the hostname shown on the mail server
+          certificate in TLS Server Name. For internal servers with self-signed certificates, you can disable
+          certificate verification.
+        </p>
+        <p className="md:col-span-2 text-xs text-white/50">
           STARTTLS upgrades a plain connection with TLS after connect. SSL/SMTPS uses encrypted connection from the start.
         </p>
         <div className="md:col-span-2 flex flex-wrap items-center gap-3">
-          <button type="submit" className="rounded-lg bg-accent px-4 py-2 text-sm">Save</button>
+          <button type="submit" className="rounded-lg bg-accent px-4 py-2 text-sm" disabled={isLoading || save.isPending}>
+            Save
+          </button>
           <button type="button" className="rounded-lg bg-white/10 px-4 py-2 text-sm" onClick={() => testConn.mutate()}>
             Test Connection
           </button>

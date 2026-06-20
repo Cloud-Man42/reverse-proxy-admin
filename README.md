@@ -1,4 +1,4 @@
-# Nginx Reverse Proxy Admin UI
+# In a Cloud Gateway
 
 Production-ready web administration tool for managing Nginx reverse proxy configurations, Let's Encrypt certificates, and operational tasks on Ubuntu 24.04.
 

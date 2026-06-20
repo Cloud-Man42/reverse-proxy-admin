@@ -78,7 +78,7 @@ class GeoIpService:
         if not countries:
             return ""
         lines = [
-            f"# Geo blocking for {rule.proxy_id} (managed by reverse-proxy-admin)",
+            f"# Geo blocking for {rule.proxy_id} (managed by In a Cloud Gateway)",
             "geoip2 /usr/share/GeoIP/GeoLite2-Country.mmdb {",
             "    $geoip2_country_code country iso_code;",
             "}",

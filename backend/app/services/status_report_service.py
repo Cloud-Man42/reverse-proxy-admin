@@ -6,6 +6,7 @@ from typing import Optional
 import psutil
 from sqlalchemy.orm import Session, joinedload
 
+from app.branding import APP_NAME
 from app.config import Settings
 from app.models.notification import NotificationLog, NotificationRecipient
 from app.models.status_report import StatusReportSettings
@@ -91,7 +92,7 @@ class StatusReportService:
         return sent
 
     def build_report(self, sections: list[str]) -> str:
-        lines = ["Reverse Proxy Admin — Status Report", ""]
+        lines = [f"{APP_NAME} — Status Report", ""]
         if StatusReportSection.PROXY_TRAFFIC.value in sections:
             lines.extend(self._section_proxy_traffic())
         if StatusReportSection.PROXY_STATUS.value in sections:
