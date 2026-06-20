@@ -158,6 +158,8 @@ export interface Certificate {
   issuer: string;
   expiry: string;
   status: "valid" | "expiring" | "expired";
+  source: "letsencrypt" | "imported";
+  renewable: boolean;
 }
 
 export interface CertificateRenewalLogEntry {

@@ -73,6 +73,7 @@ def init_db() -> None:
         backend_pool,
         backend_server,
         certificate_renewal,
+        imported_certificate,
         config_version,
         geo_rule,
         health_check,

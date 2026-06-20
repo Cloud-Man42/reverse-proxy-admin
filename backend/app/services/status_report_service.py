@@ -16,7 +16,7 @@ from app.schemas import (
     StatusReportSettingsUpdate,
 )
 from app.services.backend_pool_service import BackendPoolService
-from app.services.certbot_ops import CertbotOps
+from app.services.certificate_service import CertificateService
 from app.services.proxy_service import ProxyService
 from app.services.proxy_traffic_service import ProxyTrafficService
 from app.services.smtp_service import SmtpService
@@ -153,7 +153,7 @@ class StatusReportService:
 
     def _section_ssl_certificates(self) -> list[str]:
         lines = ["=== SSL Certificates ==="]
-        certs = CertbotOps(self.settings).list_certificates()
+        certs = CertificateService(self.settings, self.db).list_certificates()
         if not certs:
             lines.append("No certificates found.")
             return lines + [""]

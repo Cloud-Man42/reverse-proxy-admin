@@ -429,7 +429,7 @@ export function ProxyFormPage() {
           </label>
           {form.force_https ? (
             <p className="text-sm text-amber-200 md:col-span-2">
-              Requires a valid Let&apos;s Encrypt certificate for the domain. Issue the certificate on the Certificates page
+              Requires a valid SSL certificate for the domain. Issue a Let&apos;s Encrypt certificate or import your own on the Certificates page
               before saving with this option enabled.
             </p>
           ) : null}

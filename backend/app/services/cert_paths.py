@@ -1,9 +1,12 @@
 import re
 import subprocess
-from collections import deque
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.config import Settings
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 SUBPROCESS_TIMEOUT_SECONDS = 15
 
@@ -15,6 +18,25 @@ CERT_PATH_LINE_RE = re.compile(r"^\s*Certificate Path:\s*\S+/([^/\s]+)/fullchain
 def certificate_paths(settings: Settings, domain: str) -> tuple[Path, Path]:
     live_dir = settings.letsencrypt_live / domain
     return live_dir / "fullchain.pem", live_dir / "privkey.pem"
+
+
+def imported_certificate_paths(settings: Settings, name: str) -> tuple[Path, Path]:
+    directory = settings.data_dir / "certs" / name
+    return directory / "fullchain.pem", directory / "privkey.pem"
+
+
+def resolve_certificate_paths(
+    settings: Settings,
+    domain: str,
+    db: "Session | None" = None,
+) -> tuple[Path, Path]:
+    if db is not None:
+        from app.services.certificate_import_service import CertificateImportService
+
+        imported = CertificateImportService(settings, db).find_for_domain(domain)
+        if imported is not None:
+            return CertificateImportService(settings, db).paths_for(imported)
+    return certificate_paths(settings, domain)
 
 
 def build_certbot_cmd(settings: Settings, *args: str) -> list[str]:
@@ -82,7 +104,21 @@ def domain_has_certificate_in_output(domain: str, output: str) -> bool:
     return False
 
 
-def certificate_exists(settings: Settings, domain: str) -> bool:
+def certificate_exists(settings: Settings, domain: str, db: "Session | None" = None) -> bool:
+    if db is not None:
+        from app.services.certificate_import_service import CertificateImportService
+
+        imported = CertificateImportService(settings, db).find_for_domain(domain)
+        if imported is not None:
+            cert_path, key_path = CertificateImportService(settings, db).paths_for(imported)
+            try:
+                if cert_path.is_file() and key_path.is_file():
+                    return True
+            except OSError:
+                pass
+            if _sudo_path_is_file(settings, cert_path) and _sudo_path_is_file(settings, key_path):
+                return True
+
     cert_path, key_path = certificate_paths(settings, domain)
     try:
         if cert_path.is_file() and key_path.is_file():
@@ -112,9 +148,9 @@ def certificate_exists(settings: Settings, domain: str) -> bool:
     return domain_has_certificate_in_output(domain, minimal_output)
 
 
-def certificate_exists_message(settings: Settings, domain: str) -> tuple[bool, str]:
-    cert_path, key_path = certificate_paths(settings, domain)
-    if certificate_exists(settings, domain):
+def certificate_exists_message(settings: Settings, domain: str, db: "Session | None" = None) -> tuple[bool, str]:
+    cert_path, key_path = resolve_certificate_paths(settings, domain, db)
+    if certificate_exists(settings, domain, db):
         return True, f"Certificate found for {domain}"
 
     if settings.use_sudo:

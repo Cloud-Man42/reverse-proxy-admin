@@ -13,6 +13,7 @@ from app.models.ip_access_rule import IpAccessRule
 from app.models.proxy_rate_limit import ProxyRateLimit
 from app.models.proxy_waf_settings import ProxyWafSettings
 from app.schemas import ProxyAppBase, ProxyRoute
+from app.services.cert_paths import certificate_paths
 from app.services.file_lock import file_lock
 from app.services.load_balancer_service import LoadBalancerService
 from app.services.path_guard import ensure_path_allowed, safe_join
@@ -51,8 +52,8 @@ server {
 server {
 {% if app.force_https -%}
     listen 443 ssl;
-    ssl_certificate /etc/letsencrypt/live/{{ app.domains[0] }}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/{{ app.domains[0] }}/privkey.pem;
+    ssl_certificate {{ ssl_certificate }};
+    ssl_certificate_key {{ ssl_certificate_key }};
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 {% else -%}
@@ -277,16 +278,25 @@ class NginxWriter:
         ip_rules: Optional[list[IpAccessRule]] = None,
         geo_rule: Optional[GeoRule] = None,
         waf_settings: Optional[ProxyWafSettings] = None,
+        ssl_certificate: Optional[str] = None,
+        ssl_certificate_key: Optional[str] = None,
     ) -> str:
         route_pools = route_pools or {}
         slug = proxy_slug or app.name
         htpasswd_path = self.settings.htpasswd_dir / f"{app.name}.htpasswd"
+        if app.force_https:
+            if not ssl_certificate or not ssl_certificate_key:
+                cert_path, key_path = certificate_paths(self.settings, app.domains[0])
+                ssl_certificate = str(cert_path)
+                ssl_certificate_key = str(key_path)
         template = self.env.from_string(CONFIG_TEMPLATE)
         return template.render(
             app=app,
             routes=self.render_routes(app, route_pools, slug),
             upstream_blocks=self.render_upstream_blocks(app, route_pools, slug),
             htpasswd_path=str(htpasswd_path),
+            ssl_certificate=ssl_certificate,
+            ssl_certificate_key=ssl_certificate_key,
             **self.render_rate_limit(slug, rate_limit),
             **self.render_security_includes(
                 slug,

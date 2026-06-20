@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.services.certbot_ops import CertbotOps
+from app.services.certificate_service import CertificateService
 from app.services.notification_service import NotificationService
 
 SSL_THRESHOLDS = [30, 14, 7, 3, 1]
@@ -13,13 +14,14 @@ class SslAlertService:
     def __init__(self, settings: Settings, db: Session) -> None:
         self.settings = settings
         self.db = db
-        self.certbot = CertbotOps(settings)
+        self.certbot = CertbotOps(settings, db)
+        self.certificates = CertificateService(settings, db)
         self.notifications = NotificationService(settings, db)
 
     def run_daily_checks(self) -> int:
         sent = 0
         try:
-            certificates = self.certbot.list_certificates()
+            certificates = self.certificates.list_certificates()
         except Exception:
             return 0
         now = datetime.utcnow()

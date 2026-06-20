@@ -90,6 +90,8 @@ class CertbotOps:
                         issuer="Let's Encrypt",
                         expiry=current_expiry,
                         status=self._status_for_expiry(current_expiry),
+                        source="letsencrypt",
+                        renewable=True,
                     )
                 )
                 current_name = None
@@ -124,6 +126,8 @@ class CertbotOps:
                     issuer=issuer,
                     expiry=expiry,
                     status=self._status_for_expiry(expiry),
+                    source="letsencrypt",
+                    renewable=True,
                 )
             )
         return certs

@@ -18,7 +18,7 @@ export class ApiError extends Error {
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers || {});
-  if (!headers.has("Content-Type") && options.body) {
+  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
   const token = csrfToken || getCookie("nginx_admin_csrf");
@@ -113,6 +113,28 @@ export const api = {
     request<import("../types").MessageResponse>(`/api/certificates/${name}/renew`, { method: "POST" }),
   dryRunRenew: () =>
     request<import("../types").MessageResponse>("/api/certificates/actions/dry-run", { method: "POST" }),
+  importCertificate: (payload: {
+    name: string;
+    domain: string;
+    certificate: File;
+    privateKey: File;
+    chain?: File | null;
+  }) => {
+    const form = new FormData();
+    form.append("name", payload.name);
+    form.append("domain", payload.domain);
+    form.append("certificate", payload.certificate);
+    form.append("private_key", payload.privateKey);
+    if (payload.chain) {
+      form.append("chain", payload.chain);
+    }
+    return request<import("../types").MessageResponse>("/api/certificates/import", {
+      method: "POST",
+      body: form,
+    });
+  },
+  deleteCertificate: (name: string) =>
+    request<import("../types").MessageResponse>(`/api/certificates/${encodeURIComponent(name)}`, { method: "DELETE" }),
   errorLogs: (lines = 200) => request<import("../types").LogLines>(`/api/logs/error?lines=${lines}`),
   accessLogs: (lines = 200, domain?: string) => {
     const params = new URLSearchParams({ lines: String(lines) });

@@ -36,7 +36,7 @@ from app.services.security_event_service import AuditExportService
 
 from app.services.backend_pool_service import BackendPoolService
 
-from app.services.certbot_ops import CertbotOps
+from app.services.certificate_service import CertificateService
 
 from app.services.health_check_service import HealthCheckService
 
@@ -192,7 +192,7 @@ async def dashboard(
 
     try:
 
-        certs = CertbotOps(settings).list_certificates()
+        certs = CertificateService(settings, db).list_certificates()
 
         total_certs = len(certs)
 

@@ -234,6 +234,8 @@ class CertificateResponse(BaseModel):
     issuer: str
     expiry: datetime
     status: str
+    source: str = "letsencrypt"
+    renewable: bool = True
 
 
 class CertificateCreateRequest(BaseModel):

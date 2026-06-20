@@ -3,6 +3,7 @@ from app.models.audit import AuditLog
 from app.models.backend_pool import BackendPool
 from app.models.backend_server import BackendServer
 from app.models.certificate_renewal import CertificateRenewalLog
+from app.models.imported_certificate import ImportedCertificate
 from app.models.config_version import ConfigVersion
 from app.models.health_check import HealthCheckAggregate, HealthCheckResult
 from app.models.notification import NotificationLog, NotificationPreference, NotificationRecipient
@@ -29,6 +30,7 @@ __all__ = [
     "BackendPool",
     "BackendServer",
     "CertificateRenewalLog",
+    "ImportedCertificate",
     "ConfigVersion",
     "HealthCheckResult",
     "HealthCheckAggregate",

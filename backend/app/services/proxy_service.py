@@ -15,7 +15,7 @@ from app.schemas import (
     TargetProtocol,
 )
 from app.services.backend_pool_service import BackendPoolService
-from app.services.cert_paths import certificate_exists, certificate_paths
+from app.services.cert_paths import certificate_exists, certificate_paths, resolve_certificate_paths
 from app.services.config_version_service import ConfigVersionService, RESOURCE_PROXY
 from app.services.file_lock import file_lock
 from app.services.geoip_service import GeoIpService
@@ -195,6 +195,13 @@ class ProxyService:
                     .all()
                 )
                 self.writer.write_global_ip_access(global_rules)
+                self.writer.write_global_ip_access(global_rules)
+        ssl_certificate = None
+        ssl_certificate_key = None
+        if app.force_https:
+            cert_path, key_path = resolve_certificate_paths(self.settings, app.domains[0], self.db)
+            ssl_certificate = str(cert_path)
+            ssl_certificate_key = str(key_path)
         return self.writer.render_config(
             app,
             route_pools,
@@ -203,18 +210,20 @@ class ProxyService:
             ip_rules=ip_rules,
             geo_rule=geo_rule,
             waf_settings=waf_settings,
+            ssl_certificate=ssl_certificate,
+            ssl_certificate_key=ssl_certificate_key,
         )
 
     def _validate_force_https(self, app: ProxyAppBase) -> None:
         if not app.force_https:
             return
         domain = app.domains[0]
-        if certificate_exists(self.settings, domain):
+        if certificate_exists(self.settings, domain, self.db):
             return
-        cert_path, _ = certificate_paths(self.settings, domain)
+        cert_path, _ = resolve_certificate_paths(self.settings, domain, self.db)
         raise ValueError(
             f"Cannot enable Force HTTPS: no certificate for {domain} at {cert_path}. "
-            "Issue a Let's Encrypt certificate first (port 80 must be reachable from the internet)."
+            "Issue a Let's Encrypt certificate or import your own certificate on the Certificates page."
         )
 
     def _sync_notes(self, proxy_id: str, payload: ProxyAppBase, *, renaming: bool = False) -> None:

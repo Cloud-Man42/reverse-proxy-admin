@@ -60,7 +60,7 @@ def test_dashboard_returns_extended_stats(client, auth_session, db_session, temp
     )
     monkeypatch.setattr("app.api.system.SmtpService.status_label", lambda self: "connected")
     monkeypatch.setattr("app.api.system.NginxOps.status", lambda self: (True, "active"))
-    monkeypatch.setattr("app.api.system.CertbotOps.list_certificates", lambda self: [])
+    monkeypatch.setattr("app.api.system.CertificateService.list_certificates", lambda self: [])
     monkeypatch.setattr("app.api.system.LogReader.read_error_log", lambda self, lines=10: [])
     monkeypatch.setattr("app.api.system.psutil.cpu_percent", lambda interval=0.1: 12.5)
     monkeypatch.setattr(

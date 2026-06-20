@@ -52,9 +52,10 @@ def test_syntax_test_keeps_live_cert_paths_when_certificate_exists(temp_settings
     rendered = service.writer.render_config(app)
     test_dir = temp_settings.data_dir / "syntax-test"
     test_dir.mkdir(parents=True, exist_ok=True)
+    expected_cert = temp_settings.letsencrypt_live / "secure.example.com" / "fullchain.pem"
     with patch("app.services.traffic_flow_service.certificate_exists", return_value=True):
         prepared = service._prepare_rendered_for_syntax_test(rendered, test_dir, app)
-    assert "/etc/letsencrypt/live/secure.example.com/fullchain.pem" in prepared
+    assert str(expected_cert).replace("\\", "/") in prepared.replace("\\", "/")
     assert "syntax-test.crt" not in prepared
 
 
