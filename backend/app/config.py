@@ -59,9 +59,18 @@ class Settings(BaseSettings):
     alembic_upgrade: bool = True
     scheduler_enabled: bool = True
     health_check_interval_seconds: int = 60
+    nginx_regen_debounce_seconds: int = 10
+    nginx_regen_check_interval_seconds: int = 5
     system_monitor_interval_seconds: int = 300
     ssl_alert_interval_seconds: int = 86400
     health_warning_ms: int = 2000
+    proxy_traffic_interval_seconds: int = 60
+    status_report_check_interval_seconds: int = 3600
+    threat_feed_sync_interval_seconds: int = 3600
+
+    @property
+    def security_dir(self) -> Path:
+        return self.data_dir / "security"
 
     @field_validator("data_dir", "backup_dir", mode="before")
     @classmethod
@@ -89,6 +98,7 @@ class Settings(BaseSettings):
             self.data_dir,
             self.backup_dir,
             self.htpasswd_dir,
+            self.security_dir,
         ]
 
 

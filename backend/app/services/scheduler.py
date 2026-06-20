@@ -4,8 +4,12 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.config import Settings
 from app.db import SessionLocal
 from app.services.health_check_service import HealthCheckService
+from app.services.nginx_regen_service import NginxRegenService
+from app.services.proxy_traffic_service import ProxyTrafficService
 from app.services.ssl_alert_service import SslAlertService
+from app.services.status_report_service import StatusReportService
 from app.services.system_monitor_service import SystemMonitorService
+from app.services.threat_feed_service import ThreatFeedService
 
 _scheduler: BackgroundScheduler | None = None
 
@@ -14,6 +18,15 @@ def _run_health_checks(settings: Settings) -> None:
     db = SessionLocal()
     try:
         HealthCheckService(settings, db).run_all()
+        NginxRegenService(settings, db).process_pending()
+    finally:
+        db.close()
+
+
+def _run_nginx_regen(settings: Settings) -> None:
+    db = SessionLocal()
+    try:
+        NginxRegenService(settings, db).process_pending()
     finally:
         db.close()
 
@@ -42,6 +55,30 @@ def _run_health_rollup(settings: Settings) -> None:
         db.close()
 
 
+def _run_proxy_traffic_collect(settings: Settings) -> None:
+    db = SessionLocal()
+    try:
+        ProxyTrafficService(settings, db).collect_all()
+    finally:
+        db.close()
+
+
+def _run_status_reports(settings: Settings) -> None:
+    db = SessionLocal()
+    try:
+        StatusReportService(settings, db).maybe_send_scheduled()
+    finally:
+        db.close()
+
+
+def _run_threat_feed_sync(settings: Settings) -> None:
+    db = SessionLocal()
+    try:
+        ThreatFeedService(settings, db).sync_all()
+    finally:
+        db.close()
+
+
 def start_scheduler(settings: Settings) -> BackgroundScheduler:
     global _scheduler
     if _scheduler is not None:
@@ -52,6 +89,13 @@ def start_scheduler(settings: Settings) -> BackgroundScheduler:
         IntervalTrigger(seconds=settings.health_check_interval_seconds),
         args=[settings],
         id="health_checks",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_nginx_regen,
+        IntervalTrigger(seconds=settings.nginx_regen_check_interval_seconds),
+        args=[settings],
+        id="nginx_regen",
         replace_existing=True,
     )
     scheduler.add_job(
@@ -73,6 +117,27 @@ def start_scheduler(settings: Settings) -> BackgroundScheduler:
         IntervalTrigger(hours=1),
         args=[settings],
         id="health_rollup",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_proxy_traffic_collect,
+        IntervalTrigger(seconds=settings.proxy_traffic_interval_seconds),
+        args=[settings],
+        id="proxy_traffic_collect",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_status_reports,
+        IntervalTrigger(seconds=settings.status_report_check_interval_seconds),
+        args=[settings],
+        id="status_reports",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_threat_feed_sync,
+        IntervalTrigger(seconds=settings.threat_feed_sync_interval_seconds),
+        args=[settings],
+        id="threat_feed_sync",
         replace_existing=True,
     )
     scheduler.start()

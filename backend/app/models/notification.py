@@ -14,6 +14,9 @@ class NotificationRecipient(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    organization_id: Mapped[int | None] = mapped_column(
+        ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     preferences: Mapped["NotificationPreference | None"] = relationship(

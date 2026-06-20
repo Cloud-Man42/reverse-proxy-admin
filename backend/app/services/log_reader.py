@@ -26,6 +26,19 @@ class LogReader:
     def read_error_log(self, lines: int = 200) -> List[str]:
         return self._tail(self.settings.nginx_error_log, lines=lines)
 
+    def read_from_offset(self, path: Path, offset: int = 0) -> tuple[List[str], int]:
+        ensure_path_allowed(path, self.settings.allowed_read_paths())
+        if not path.exists():
+            return [], 0
+        try:
+            with path.open("r", encoding="utf-8", errors="replace") as handle:
+                handle.seek(max(offset, 0))
+                lines = handle.readlines()
+                new_offset = handle.tell()
+            return lines, new_offset
+        except OSError:
+            return [], offset
+
     def read_access_log(self, lines: int = 200, domain: Optional[str] = None) -> List[str]:
         entries = self._tail(self.settings.nginx_access_log, lines=max(lines * 5, 500))
         if domain:

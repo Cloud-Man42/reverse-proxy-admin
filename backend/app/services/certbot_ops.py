@@ -2,10 +2,13 @@ import subprocess
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import List, Optional
+
+from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.schemas import CertificateResponse
+from app.models.certificate_renewal import CertificateRenewalLog
+from app.schemas import CertificateRenewalLogResponse, CertificateResponse
 from app.security.validators import validate_certbot_email, validate_domain
 from app.services.cert_paths import SUBPROCESS_TIMEOUT_SECONDS, run_certbot_certificates
 
@@ -13,8 +16,9 @@ from app.services.cert_paths import SUBPROCESS_TIMEOUT_SECONDS, run_certbot_cert
 class CertbotOps:
     CERTBOT_BIN = "/usr/bin/certbot"
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, db: Optional[Session] = None) -> None:
         self.settings = settings
+        self.db = db
 
     def _certbot_cmd(self, *args: str) -> list[str]:
         from app.services.cert_paths import build_certbot_cmd
@@ -150,6 +154,55 @@ class CertbotOps:
         except ValueError:
             return email, False
 
+    def log_renewal(
+        self,
+        certificate_name: str,
+        domain: str,
+        action: str,
+        status: str,
+        detail: str | None = None,
+    ) -> None:
+        if not self.db:
+            return
+        entry = CertificateRenewalLog(
+            certificate_name=certificate_name,
+            domain=domain,
+            action=action,
+            status=status,
+            detail=detail,
+        )
+        self.db.add(entry)
+        self.db.commit()
+
+    def list_renewal_history(
+        self,
+        *,
+        certificate_name: str | None = None,
+        limit: int = 100,
+    ) -> list[CertificateRenewalLogResponse]:
+        if not self.db:
+            return []
+        query = self.db.query(CertificateRenewalLog)
+        if certificate_name:
+            query = query.filter(CertificateRenewalLog.certificate_name == certificate_name)
+        rows = (
+            query.order_by(CertificateRenewalLog.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            CertificateRenewalLogResponse(
+                id=row.id,
+                certificate_name=row.certificate_name,
+                domain=row.domain,
+                action=row.action,
+                status=row.status,
+                detail=row.detail,
+                created_at=row.created_at,
+            )
+            for row in rows
+        ]
+
     def issue_certificate(self, domain: str, email: str | None = None) -> tuple[bool, str]:
         domain = validate_domain(domain)
         try:
@@ -170,9 +223,14 @@ class CertbotOps:
                 timeout=300,
             )
         except subprocess.TimeoutExpired:
-            return False, "Certbot timed out while issuing certificate"
+            output = "Certbot timed out while issuing certificate"
+            self.log_renewal(domain, domain, "issue", "failed", output)
+            return False, output
         output = (result.stdout or "") + (result.stderr or "")
-        return result.returncode == 0, output.strip()
+        output = output.strip()
+        status = "success" if result.returncode == 0 else "failed"
+        self.log_renewal(domain, domain, "issue", status, output)
+        return result.returncode == 0, output
 
     def renew_certificate(self, cert_name: str) -> tuple[bool, str]:
         if not cert_name.replace("-", "").replace(".", "").isalnum():
@@ -180,14 +238,24 @@ class CertbotOps:
         try:
             result = self._run(self._certbot_cmd("renew", "--cert-name", cert_name), timeout=300)
         except subprocess.TimeoutExpired:
-            return False, "Certbot timed out while renewing certificate"
+            output = "Certbot timed out while renewing certificate"
+            self.log_renewal(cert_name, cert_name, "renew", "failed", output)
+            return False, output
         output = (result.stdout or "") + (result.stderr or "")
-        return result.returncode == 0, output.strip()
+        output = output.strip()
+        status = "success" if result.returncode == 0 else "failed"
+        self.log_renewal(cert_name, cert_name, "renew", status, output)
+        return result.returncode == 0, output
 
     def dry_run_renew(self) -> tuple[bool, str]:
         try:
             result = self._run(self._certbot_cmd("renew", "--dry-run"), timeout=300)
         except subprocess.TimeoutExpired:
-            return False, "Certbot dry run timed out"
+            output = "Certbot dry run timed out"
+            self.log_renewal("all", "all", "dry_run", "failed", output)
+            return False, output
         output = (result.stdout or "") + (result.stderr or "")
-        return result.returncode == 0, output.strip()
+        output = output.strip()
+        status = "success" if result.returncode == 0 else "failed"
+        self.log_renewal("all", "all", "dry_run", status, output)
+        return result.returncode == 0, output

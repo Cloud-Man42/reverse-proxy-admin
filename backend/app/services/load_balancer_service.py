@@ -3,7 +3,7 @@ from typing import Optional
 from app.config import Settings
 from app.models.backend_pool import BackendPool
 from app.models.backend_server import BackendServer
-from app.schemas import LoadBalancingMethod
+from app.schemas import HealthStatus, LoadBalancingMethod
 
 
 class LoadBalancerService:
@@ -27,14 +27,18 @@ class LoadBalancerService:
         if directive:
             lines.append(f"    {directive};")
         enabled_servers = [s for s in pool.servers if s.enabled]
-        if not enabled_servers:
-            lines.append("    # no enabled servers")
-        for server in enabled_servers:
+        active_servers = [
+            s for s in enabled_servers if s.health_status != HealthStatus.OFFLINE.value
+        ]
+        if not active_servers:
+            lines.append("    # no active servers")
+        for server in active_servers:
             parts = [f"server {server.host}:{server.port}"]
             if method == LoadBalancingMethod.WEIGHTED or server.weight != 1:
                 parts.append(f"weight={server.weight}")
             if server.role == "backup":
                 parts.append("backup")
+            parts.extend(["max_fails=3", "fail_timeout=30s"])
             lines.append("    " + " ".join(parts) + ";")
         lines.append("}")
         return "\n".join(lines)

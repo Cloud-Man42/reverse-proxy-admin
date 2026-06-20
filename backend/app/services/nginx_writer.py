@@ -8,6 +8,10 @@ from jinja2 import Environment, StrictUndefined
 
 from app.config import Settings
 from app.models.backend_pool import BackendPool
+from app.models.geo_rule import GeoRule
+from app.models.ip_access_rule import IpAccessRule
+from app.models.proxy_rate_limit import ProxyRateLimit
+from app.models.proxy_waf_settings import ProxyWafSettings
 from app.schemas import ProxyAppBase, ProxyRoute
 from app.services.file_lock import file_lock
 from app.services.load_balancer_service import LoadBalancerService
@@ -16,12 +20,23 @@ from app.services.path_guard import ensure_path_allowed, safe_join
 
 PROXY_DEBUG_LOG_FORMAT = (
     "log_format proxy_debug "
-    "'$remote_addr|$time_local|$host|$request|$status|$body_bytes_sent|$http_x_forwarded_for|$http_user_agent';"
+    "'$remote_addr|$time_local|$host|$request|$status|$body_bytes_sent|"
+    "$request_length|$upstream_bytes_received|$upstream_bytes_sent|"
+    "$http_x_forwarded_for|$http_user_agent|$request_time|$upstream_response_time';"
 )
 
 
-CONFIG_TEMPLATE = """{% if upstream_blocks -%}
+CONFIG_TEMPLATE = """{% if rate_limit_zone -%}
+{{ rate_limit_zone }}
+
+{% endif -%}{% if upstream_blocks -%}
 {{ upstream_blocks }}
+
+{% endif -%}{% if global_ip_include -%}
+include {{ global_ip_include }};
+
+{% endif -%}{% if threat_feed_include -%}
+include {{ threat_feed_include }};
 
 {% endif -%}
 {% if app.force_https -%}
@@ -53,8 +68,22 @@ server {
     auth_basic "Restricted";
     auth_basic_user_file {{ htpasswd_path }};
 {% endif -%}
+{% if ip_access_directives -%}
+{{ ip_access_directives }}
+{% endif -%}
+{% if geo_include -%}
+    include {{ geo_include }};
+{% endif -%}
+{% if waf_include -%}
+    modsecurity on;
+    modsecurity_rules_file {{ waf_include }};
+{% endif -%}
 {% for route in routes -%}
     location {{ route.location }} {
+{% if rate_limit_zone -%}
+        limit_req zone={{ rate_limit_zone_name }} burst={{ rate_limit_burst }}{% if rate_limit_nodelay %} nodelay{% endif %};
+
+{% endif -%}
         proxy_pass {{ route.proxy_pass }};
 
         proxy_set_header Host $host;
@@ -181,20 +210,90 @@ class NginxWriter:
                 blocks.append(lb.render_upstream_block(pool, name))
         return "\n\n".join(blocks)
 
+    def render_rate_limit(self, proxy_slug: str, rate_limit: Optional[ProxyRateLimit]) -> dict[str, object]:
+        if not rate_limit or not rate_limit.enabled:
+            return {
+                "rate_limit_zone": "",
+                "rate_limit_zone_name": "",
+                "rate_limit_burst": 0,
+                "rate_limit_nodelay": False,
+            }
+        zone_name = f"{proxy_slug}_rl"
+        key = "$binary_remote_addr" if rate_limit.key_type == "client_ip" else "$uri"
+        rate = f"{rate_limit.requests_per_minute}r/m"
+        zone = f"limit_req_zone {key} zone={zone_name}:10m rate={rate};"
+        return {
+            "rate_limit_zone": zone,
+            "rate_limit_zone_name": zone_name,
+            "rate_limit_burst": rate_limit.burst,
+            "rate_limit_nodelay": rate_limit.nodelay,
+        }
+
+    def write_global_ip_access(self, rules: list[IpAccessRule]) -> None:
+        from app.services.ip_access_service import IpAccessService
+
+        self.settings.security_dir.mkdir(parents=True, exist_ok=True)
+        path = self.settings.security_dir / "global-ip-access.conf"
+        content = IpAccessService.render_global_include(rules)
+        if content:
+            path.write_text(content, encoding="utf-8")
+        elif path.exists():
+            path.unlink()
+
+    @staticmethod
+    def render_ip_access(ip_rules: Optional[list[IpAccessRule]]) -> str:
+        from app.services.ip_access_service import IpAccessService
+
+        if not ip_rules:
+            return ""
+        return IpAccessService.render_nginx_directives(ip_rules)
+
+    def render_security_includes(
+        self,
+        proxy_slug: str,
+        *,
+        ip_rules: Optional[list[IpAccessRule]] = None,
+        geo_rule: Optional[GeoRule] = None,
+        waf_settings: Optional[ProxyWafSettings] = None,
+    ) -> dict[str, object]:
+        global_path = self.settings.security_dir / "global-ip-access.conf"
+        threat_path = self.settings.security_dir / "threat-feeds.conf"
+        geo_path = self.settings.security_dir / f"geo-{proxy_slug}.conf"
+        waf_path = self.settings.security_dir / f"waf-{proxy_slug}.conf"
+        return {
+            "global_ip_include": str(global_path) if global_path.exists() else "",
+            "threat_feed_include": str(threat_path) if threat_path.exists() else "",
+            "ip_access_directives": self.render_ip_access(ip_rules),
+            "geo_include": str(geo_path) if geo_rule and geo_rule.enabled and geo_path.exists() else "",
+            "waf_include": str(waf_path) if waf_settings and waf_settings.enabled and waf_path.exists() else "",
+        }
+
     def render_config(
         self,
         app: ProxyAppBase,
         route_pools: Optional[dict[int, BackendPool]] = None,
         proxy_slug: Optional[str] = None,
+        rate_limit: Optional[ProxyRateLimit] = None,
+        ip_rules: Optional[list[IpAccessRule]] = None,
+        geo_rule: Optional[GeoRule] = None,
+        waf_settings: Optional[ProxyWafSettings] = None,
     ) -> str:
         route_pools = route_pools or {}
+        slug = proxy_slug or app.name
         htpasswd_path = self.settings.htpasswd_dir / f"{app.name}.htpasswd"
         template = self.env.from_string(CONFIG_TEMPLATE)
         return template.render(
             app=app,
-            routes=self.render_routes(app, route_pools, proxy_slug),
-            upstream_blocks=self.render_upstream_blocks(app, route_pools, proxy_slug),
+            routes=self.render_routes(app, route_pools, slug),
+            upstream_blocks=self.render_upstream_blocks(app, route_pools, slug),
             htpasswd_path=str(htpasswd_path),
+            **self.render_rate_limit(slug, rate_limit),
+            **self.render_security_includes(
+                slug,
+                ip_rules=ip_rules,
+                geo_rule=geo_rule,
+                waf_settings=waf_settings,
+            ),
         )
 
     def write_htpasswd(self, app: ProxyAppBase) -> None:

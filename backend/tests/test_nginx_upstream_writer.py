@@ -23,8 +23,8 @@ def test_render_upstream_round_robin(temp_settings):
     writer = NginxWriter(temp_settings)
     config = writer.render_config(app, {0: pool})
     assert "upstream demo_0_backend" in config
-    assert "server 192.168.1.10:443 weight=10;" in config
-    assert "server 192.168.1.11:443 weight=5 backup;" in config
+    assert "server 192.168.1.10:443 weight=10 max_fails=3 fail_timeout=30s;" in config
+    assert "server 192.168.1.11:443 weight=5 backup max_fails=3 fail_timeout=30s;" in config
     assert "proxy_pass https://demo_0_backend;" in config
 
 
@@ -45,4 +45,44 @@ def test_render_upstream_least_conn(temp_settings):
     )
     config = NginxWriter(temp_settings).render_config(app, {0: pool})
     assert "least_conn;" in config
+    assert "max_fails=3 fail_timeout=30s;" in config
     assert "proxy_pass http://web_0_backend;" in config
+
+
+def test_render_upstream_excludes_offline_servers(temp_settings):
+    pool = BackendPool(
+        id=1,
+        name="demo_pool",
+        load_balancing_method=LoadBalancingMethod.ROUND_ROBIN.value,
+        enabled=True,
+    )
+    pool.servers = [
+        BackendServer(
+            host="192.168.1.10",
+            port=8080,
+            protocol="http",
+            weight=1,
+            role="primary",
+            enabled=True,
+            name="healthy",
+            health_status="healthy",
+        ),
+        BackendServer(
+            host="192.168.1.11",
+            port=8080,
+            protocol="http",
+            weight=1,
+            role="primary",
+            enabled=True,
+            name="offline",
+            health_status="offline",
+        ),
+    ]
+    app = ProxyAppCreate(
+        name="demo",
+        domains=["demo.example.com"],
+        routes=[{"path_prefix": "/", "target_protocol": "http", "target_host": "127.0.0.1", "target_port": 8080}],
+    )
+    config = NginxWriter(temp_settings).render_config(app, {0: pool})
+    assert "server 192.168.1.10:8080 max_fails=3 fail_timeout=30s;" in config
+    assert "192.168.1.11" not in config

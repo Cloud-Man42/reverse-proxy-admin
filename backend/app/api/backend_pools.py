@@ -18,6 +18,7 @@ from app.schemas import (
     MessageResponse,
 )
 from app.security.ip_allowlist import _client_ip
+from app.security.auth import get_current_user
 from app.security.permissions import Permission, require_permission
 from app.services.audit_service import log_audit
 from app.services.backend_pool_service import BackendPoolService
@@ -29,8 +30,9 @@ router = APIRouter(prefix="/backend-pools", tags=["backend-pools"])
 def get_pool_service(
     settings: Settings = Depends(get_settings),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> BackendPoolService:
-    return BackendPoolService(settings, db)
+    return BackendPoolService(settings, db, user=user)
 
 
 @router.get("", response_model=list[BackendPoolResponse])

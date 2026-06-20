@@ -6,6 +6,7 @@ from app.config import Settings
 from app.models.backend_pool import BackendPool
 from app.models.backend_server import BackendServer
 from app.models.health_check import HealthCheckAggregate, HealthCheckResult
+from app.models.user import User
 from app.schemas import (
     BackendPoolCreate,
     BackendPoolResponse,
@@ -20,18 +21,27 @@ from app.schemas import (
     LoadBalancingMethod,
     TargetProtocol,
 )
+from app.security.tenant_context import filter_query_by_org, get_current_org
 from app.services.load_balancer_service import LoadBalancerService
 
 
 class BackendPoolService:
-    def __init__(self, settings: Settings, db: Session) -> None:
+    def __init__(self, settings: Settings, db: Session, user: Optional[User] = None) -> None:
         self.settings = settings
         self.db = db
+        self.user = user
         self.lb = LoadBalancerService(settings)
 
     def _pool_query(self):
-        return self.db.query(BackendPool).options(joinedload(BackendPool.servers))
+        query = self.db.query(BackendPool).options(joinedload(BackendPool.servers))
+        if self.user:
+            query = filter_query_by_org(query, BackendPool, self.user)
+        return query
 
+    def _default_org_id(self) -> Optional[int]:
+        if self.user:
+            return get_current_org(self.user) or self.user.organization_id
+        return None
     def list_pools(
         self,
         *,
@@ -54,7 +64,10 @@ class BackendPoolService:
         return self._pool_query().filter(BackendPool.name == name).first()
 
     def create_pool(self, payload: BackendPoolCreate) -> BackendPoolResponse:
-        if self.db.query(BackendPool).filter(BackendPool.name == payload.name).first():
+        name_query = self.db.query(BackendPool).filter(BackendPool.name == payload.name)
+        if self.user:
+            name_query = filter_query_by_org(name_query, BackendPool, self.user)
+        if name_query.first():
             raise ValueError(f"Pool name '{payload.name}' already exists")
         pool = BackendPool(
             name=payload.name,
@@ -63,6 +76,7 @@ class BackendPoolService:
             load_balancing_method=payload.load_balancing_method.value,
             enabled=payload.enabled,
             notes=payload.notes,
+            organization_id=self._default_org_id(),
         )
         self.db.add(pool)
         self.db.flush()
@@ -87,7 +101,7 @@ class BackendPoolService:
         return self._to_response(self._pool_query().filter(BackendPool.id == pool.id).first())
 
     def update_pool(self, pool_id: int, payload: BackendPoolUpdate) -> Optional[BackendPoolResponse]:
-        pool = self.db.query(BackendPool).filter(BackendPool.id == pool_id).first()
+        pool = self._pool_query().filter(BackendPool.id == pool_id).first()
         if not pool:
             return None
         data = payload.model_dump(exclude_unset=True)
@@ -99,7 +113,7 @@ class BackendPoolService:
         return self.get_pool(pool_id)
 
     def delete_pool(self, pool_id: int) -> bool:
-        pool = self.db.query(BackendPool).filter(BackendPool.id == pool_id).first()
+        pool = self._pool_query().filter(BackendPool.id == pool_id).first()
         if not pool:
             return False
         self.db.delete(pool)
@@ -107,7 +121,7 @@ class BackendPoolService:
         return True
 
     def create_server(self, payload: BackendServerCreate) -> BackendServerResponse:
-        pool = self.db.query(BackendPool).options(joinedload(BackendPool.servers)).filter(BackendPool.id == payload.pool_id).first()
+        pool = self._pool_query().filter(BackendPool.id == payload.pool_id).first()
         if not pool:
             raise ValueError("Pool not found")
         protocols = {s.protocol for s in pool.servers if s.enabled}
@@ -133,7 +147,12 @@ class BackendPoolService:
         return self._server_response(server, pool.name)
 
     def update_server(self, server_id: int, payload: BackendServerUpdate) -> Optional[BackendServerResponse]:
-        server = self.db.query(BackendServer).filter(BackendServer.id == server_id).first()
+        server_query = self.db.query(BackendServer).filter(BackendServer.id == server_id)
+        if self.user and not self.user.is_super_admin():
+            org_id = get_current_org(self.user) or self.user.organization_id
+            if org_id is not None:
+                server_query = server_query.join(BackendPool).filter(BackendPool.organization_id == org_id)
+        server = server_query.first()
         if not server:
             return None
         data = payload.model_dump(exclude_unset=True)
@@ -147,7 +166,12 @@ class BackendPoolService:
         return self._server_response(server, pool.name if pool else "")
 
     def delete_server(self, server_id: int) -> bool:
-        server = self.db.query(BackendServer).filter(BackendServer.id == server_id).first()
+        server_query = self.db.query(BackendServer).filter(BackendServer.id == server_id)
+        if self.user and not self.user.is_super_admin():
+            org_id = get_current_org(self.user) or self.user.organization_id
+            if org_id is not None:
+                server_query = server_query.join(BackendPool).filter(BackendPool.organization_id == org_id)
+        server = server_query.first()
         if not server:
             return False
         self.db.delete(server)
@@ -162,13 +186,15 @@ class BackendPoolService:
         page_size: int = 50,
     ) -> tuple[list[BackendServerResponse], int]:
         query = self.db.query(BackendServer)
+        if self.user and not self.user.is_super_admin():
+            org_id = get_current_org(self.user) or self.user.organization_id
+            if org_id is not None:
+                query = query.join(BackendPool).filter(BackendPool.organization_id == org_id)
         if pool_id:
             query = query.filter(BackendServer.pool_id == pool_id)
         total = query.count()
         servers = query.order_by(BackendServer.name).offset((page - 1) * page_size).limit(page_size).all()
-        pool_names = {
-            p.id: p.name for p in self.db.query(BackendPool.id, BackendPool.name).all()
-        }
+        pool_names = {p.id: p.name for p in self._pool_query().all()}
         return [self._server_response(s, pool_names.get(s.pool_id, "")) for s in servers], total
 
     def list_load_balancers(self) -> list[LoadBalancerSummary]:

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toPayload } from "./proxyPayload";
-import { ProxyFormData } from "../types";
+import { ProxyFormData, defaultRateLimit } from "../types";
 
 const baseForm: ProxyFormData = {
   name: "myapp",
@@ -23,6 +23,8 @@ const baseForm: ProxyFormData = {
   basic_auth_password: "",
   force_https: false,
   enabled: true,
+  notes: "",
+  rate_limit: defaultRateLimit(),
 };
 
 describe("toPayload", () => {

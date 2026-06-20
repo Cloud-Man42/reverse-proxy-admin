@@ -8,7 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import auth, backend_pools, certificates, health_checks, logs, notifications, proxies, smtp, system, system_alerts, users
+from app.api import analytics, api_tokens, auth, backend_pools, certificates, config_versions, health_checks, logs, notifications, organizations, proxies, security, smtp, status_reports, system, system_alerts, templates, users
+from app.api.v1 import router as v1_router
 from app.config import get_settings
 from app.db import SessionLocal, init_db
 from app.security.auth import bootstrap_admin
@@ -36,6 +37,9 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         bootstrap_admin(db, settings)
+        from app.services.template_service import TemplateService
+
+        TemplateService(db).ensure_builtins()
     finally:
         db.close()
     if settings.scheduler_enabled:
@@ -100,17 +104,25 @@ async def enforce_ip_allowlist(request: Request, call_next):
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(proxies.router, prefix="/api")
+app.include_router(templates.router, prefix="/api")
+app.include_router(config_versions.router, prefix="/api")
 app.include_router(backend_pools.router, prefix="/api")
 app.include_router(backend_pools.router_servers, prefix="/api")
 app.include_router(backend_pools.load_balancers_router, prefix="/api")
 app.include_router(health_checks.router, prefix="/api")
 app.include_router(smtp.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
+app.include_router(status_reports.router, prefix="/api")
+app.include_router(analytics.router, prefix="/api")
 app.include_router(system_alerts.router, prefix="/api")
 app.include_router(certificates.router, prefix="/api")
 app.include_router(logs.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
+app.include_router(organizations.router, prefix="/api")
+app.include_router(api_tokens.router, prefix="/api")
+app.include_router(security.router, prefix="/api")
+app.include_router(v1_router)
 
 
 if settings.frontend_dist.exists():

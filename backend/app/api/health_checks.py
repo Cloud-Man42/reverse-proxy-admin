@@ -46,3 +46,15 @@ async def health_history(
     _user: User = Depends(require_permission(Permission.READ)),
 ) -> list[HealthHistoryPoint]:
     return service.get_history(server_id, range)
+
+
+@router.post("/servers/{server_id}/run", response_model=HealthCheckResultResponse)
+async def run_health_check(
+    server_id: int,
+    service: HealthCheckService = Depends(get_service),
+    _user: User = Depends(require_permission(Permission.EDIT)),
+) -> HealthCheckResultResponse:
+    result = service.run_server(server_id)
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Server not found")
+    return result

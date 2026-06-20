@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { FormEvent, MouseEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../api/client";
 import { Card } from "../components/Card";
 import { StatusBadge } from "../components/StatusBadge";
 import { UptimeChartLoader } from "../components/UptimeChart";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import { useToast } from "../hooks/useToast";
 import { BackendServer } from "../types";
 
 function healthBadge(status: string) {
@@ -17,8 +18,27 @@ function healthBadge(status: string) {
 export function HealthMonitoringPage() {
   const [selectedServer, setSelectedServer] = useState<BackendServer | null>(null);
   const [range, setRange] = useState("24h");
+  const [runningId, setRunningId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+  const { showSuccess, showError } = useToast();
   const { data, refetch } = useQuery({ queryKey: ["health-dashboard"], queryFn: api.healthDashboard });
   useAutoRefresh(true, 30000, refetch);
+
+  const runCheck = useMutation({
+    mutationFn: (serverId: number) => api.runHealthCheck(serverId),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["health-dashboard"] });
+      showSuccess(`Check complete: ${result.status}`);
+    },
+    onError: (e) => showError(e instanceof ApiError ? e.message : "Health check failed"),
+    onSettled: () => setRunningId(null),
+  });
+
+  const handleRunCheck = (event: MouseEvent, serverId: number) => {
+    event.stopPropagation();
+    setRunningId(serverId);
+    runCheck.mutate(serverId);
+  };
 
   return (
     <div className="space-y-6">
@@ -38,6 +58,7 @@ export function HealthMonitoringPage() {
               <th>Status</th>
               <th>Response</th>
               <th>Uptime 24h</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -52,6 +73,16 @@ export function HealthMonitoringPage() {
                 <td>{healthBadge(server.health_status)}</td>
                 <td>{server.response_ms != null ? `${server.response_ms} ms` : "—"}</td>
                 <td>{server.uptime_percent_24h != null ? `${server.uptime_percent_24h}%` : "—"}</td>
+                <td className="text-right">
+                  <button
+                    type="button"
+                    className="rounded bg-white/10 px-2 py-1 text-xs"
+                    disabled={runningId === server.id}
+                    onClick={(e) => handleRunCheck(e, server.id)}
+                  >
+                    {runningId === server.id ? "Running…" : "Run check now"}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

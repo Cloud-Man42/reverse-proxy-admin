@@ -60,6 +60,15 @@ class NotificationEventType(str, Enum):
     NGINX_RELOAD_FAILED = "nginx_reload_failed"
     SYSTEM_ERROR = "system_error"
     LOGIN_SECURITY = "login_security"
+    STATUS_REPORT = "status_report"
+
+
+class StatusReportSection(str, Enum):
+    PROXY_TRAFFIC = "proxy_traffic"
+    PROXY_STATUS = "proxy_status"
+    LOAD_BALANCER_HEALTH = "load_balancer_health"
+    SSL_CERTIFICATES = "ssl_certificates"
+    SYSTEM_METRICS = "system_metrics"
 
 
 class CustomHeader(BaseModel):
@@ -92,6 +101,27 @@ class ProxyRoute(BaseModel):
         return self
 
 
+class ProxyRateLimitKeyType(str, Enum):
+    CLIENT_IP = "client_ip"
+    URI = "uri"
+
+
+class ProxyRateLimitBase(BaseModel):
+    enabled: bool = False
+    requests_per_minute: int = Field(default=60, ge=1, le=10000)
+    burst: int = Field(default=20, ge=1, le=1000)
+    nodelay: bool = True
+    key_type: ProxyRateLimitKeyType = ProxyRateLimitKeyType.CLIENT_IP
+
+
+class ProxyRateLimitUpdate(ProxyRateLimitBase):
+    pass
+
+
+class ProxyRateLimitResponse(ProxyRateLimitBase):
+    proxy_id: str
+
+
 class ProxyAppBase(BaseModel):
     name: SlugStr
     domains: List[DomainStr] = Field(min_length=1)
@@ -103,6 +133,8 @@ class ProxyAppBase(BaseModel):
     basic_auth_password: Optional[str] = None
     force_https: bool = False
     enabled: bool = True
+    notes: Optional[str] = None
+    rate_limit: Optional[ProxyRateLimitUpdate] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -182,6 +214,8 @@ class ProxyAppResponse(BaseModel):
     https_enabled: bool
     upstream: str
     managed: bool = True
+    notes: Optional[str] = None
+    rate_limit: Optional[ProxyRateLimitResponse] = None
 
 
 class NginxTestResult(BaseModel):
@@ -210,6 +244,16 @@ class CertificateCreateRequest(BaseModel):
 class CertificateSettingsResponse(BaseModel):
     default_email: str
     email_configured: bool
+
+
+class CertificateRenewalLogResponse(BaseModel):
+    id: int
+    certificate_name: str
+    domain: str
+    action: str
+    status: str
+    detail: Optional[str]
+    created_at: datetime
 
 
 class LogLinesResponse(BaseModel):
@@ -267,6 +311,32 @@ class LoginResponse(BaseModel):
     csrf_token: str
     is_admin: bool = False
     permissions: dict = Field(default_factory=dict)
+    organization_id: Optional[int] = None
+    role: str = "operator"
+
+
+class OrganizationBase(BaseModel):
+    slug: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9-]+$")
+    name: str = Field(min_length=1, max_length=128)
+    enabled: bool = True
+
+
+class OrganizationCreate(OrganizationBase):
+    pass
+
+
+class OrganizationUpdate(BaseModel):
+    slug: Optional[str] = Field(default=None, min_length=1, max_length=64, pattern=r"^[a-z0-9-]+$")
+    name: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    enabled: Optional[bool] = None
+
+
+class OrganizationResponse(BaseModel):
+    id: int
+    slug: str
+    name: str
+    enabled: bool
+    created_at: datetime
 
 
 class UserPermissions(BaseModel):
@@ -321,9 +391,20 @@ class TrafficFlowTestResult(BaseModel):
     checks: List[TrafficFlowCheck]
 
 
+class DashboardAlert(BaseModel):
+    id: int
+    source: str
+    alert_type: str
+    title: str
+    message: Optional[str] = None
+    status: str
+    created_at: datetime
+
+
 class DashboardStats(BaseModel):
     active_proxies: int
     inactive_proxies: int
+    disabled_proxies: int = 0
     nginx_active: bool
     expiring_certificates: int
     recent_errors: List[str]
@@ -333,6 +414,13 @@ class DashboardStats(BaseModel):
     offline_backends: int = 0
     total_certificates: int = 0
     smtp_status: str = "unknown"
+    traffic_bytes_in_24h: int = 0
+    traffic_bytes_out_24h: int = 0
+    cpu_percent: Optional[float] = None
+    ram_percent: Optional[float] = None
+    disk_percent: Optional[float] = None
+    recent_alerts: List[DashboardAlert] = Field(default_factory=list)
+    traffic_history: List["ProxyTrafficHistoryPoint"] = Field(default_factory=list)
 
 
 class BackendServerBase(BaseModel):
@@ -585,3 +673,302 @@ class NetworkMapResponse(BaseModel):
     nodes: List[NetworkMapNode]
     edges: List[NetworkMapEdge]
     generated_at: datetime
+
+
+class ProxyTrafficHistoryPoint(BaseModel):
+    timestamp: datetime
+    connections: int
+    bytes_in: int
+    bytes_out: int
+
+
+class ProxyTrafficStatsResponse(BaseModel):
+    proxy_id: str
+    proxy_name: str
+    domains: List[str]
+    range: str
+    connections: int
+    bytes_in: int
+    bytes_out: int
+    upstream_bytes_in: int
+    upstream_bytes_out: int
+    history: List[ProxyTrafficHistoryPoint] = Field(default_factory=list)
+
+
+class ProxyTrafficSummary(BaseModel):
+    proxy_id: str
+    proxy_name: str
+    domains: List[str]
+    enabled: bool
+    connections: int
+    bytes_in: int
+    bytes_out: int
+
+
+class AnalyticsSummaryItem(BaseModel):
+    proxy_id: str
+    proxy_name: str
+    domains: List[str]
+    enabled: bool
+    requests: int
+    rps: float
+    latency_avg_ms: float
+    upstream_latency_avg_ms: float
+    error_rate: float
+    status_2xx: int
+    status_3xx: int
+    status_4xx: int
+    status_5xx: int
+    bytes_in: int
+    bytes_out: int
+
+
+class AnalyticsSummaryResponse(BaseModel):
+    range: str
+    items: List[AnalyticsSummaryItem]
+
+
+class AnalyticsProxyResponse(BaseModel):
+    proxy_id: str
+    proxy_name: str
+    domains: List[str]
+    range: str
+    requests: int
+    rps: float
+    latency_avg_ms: float
+    upstream_latency_avg_ms: float
+    error_rate: float
+    status_2xx: int
+    status_3xx: int
+    status_4xx: int
+    status_5xx: int
+    bytes_in: int
+    bytes_out: int
+    top_clients: Dict[str, int] = Field(default_factory=dict)
+    top_paths: Dict[str, int] = Field(default_factory=dict)
+    history: List[ProxyTrafficHistoryPoint] = Field(default_factory=list)
+
+
+class StatusReportSettingsUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    interval_hours: Optional[int] = Field(default=None, ge=1, le=168)
+    enabled_sections: Optional[List[StatusReportSection]] = None
+
+
+class StatusReportSettingsResponse(BaseModel):
+    enabled: bool
+    interval_hours: int
+    enabled_sections: List[str]
+    last_sent_at: Optional[datetime] = None
+    updated_at: datetime
+
+
+class ProxyTemplateResponse(BaseModel):
+    id: int
+    slug: str
+    name: str
+    description: Optional[str] = None
+    defaults: dict = Field(default_factory=dict)
+    builtin: bool
+
+
+class ConfigVersionResponse(BaseModel):
+    id: int
+    resource_type: str
+    resource_id: str
+    version: int
+    username: str
+    summary: str
+    has_old_config: bool
+    nginx_test_result: Optional[str] = None
+    created_at: datetime
+
+
+class ConfigVersionDetailResponse(ConfigVersionResponse):
+    old_config: Optional[str] = None
+    new_config: str
+
+
+class ConfigVersionCompareResponse(BaseModel):
+    id1: int
+    id2: int
+    resource_type: str
+    resource_id: str
+    version1: int
+    version2: int
+    diff: str
+
+
+class ConfigVersionRollbackResponse(BaseModel):
+    success: bool
+    message: str
+    version: Optional[ConfigVersionResponse] = None
+
+
+class ApiTokenCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    scopes: List[str] = Field(min_length=1)
+    expires_at: Optional[datetime] = None
+
+
+class ApiTokenUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    scopes: Optional[List[str]] = None
+    expires_at: Optional[datetime] = None
+
+
+class ApiTokenResponse(BaseModel):
+    id: int
+    name: str
+    token_prefix: str
+    scopes: List[str]
+    expires_at: Optional[datetime]
+    last_used_at: Optional[datetime]
+    revoked: bool
+    created_at: datetime
+
+
+class ApiTokenCreatedResponse(ApiTokenResponse):
+    token: str
+
+
+class ApiTokenScopesResponse(BaseModel):
+    scopes: List[str]
+
+
+class IpAccessRuleType(str, Enum):
+    ALLOW = "allow"
+    DENY = "deny"
+
+
+class IpAccessScope(str, Enum):
+    GLOBAL = "global"
+    PROXY = "proxy"
+
+
+class IpAccessRuleBase(BaseModel):
+    scope: IpAccessScope
+    proxy_id: Optional[str] = None
+    rule_type: IpAccessRuleType
+    cidr: str = Field(min_length=1, max_length=64)
+    enabled: bool = True
+    notes: Optional[str] = None
+
+
+class IpAccessRuleCreate(IpAccessRuleBase):
+    pass
+
+
+class IpAccessRuleUpdate(BaseModel):
+    scope: Optional[IpAccessScope] = None
+    proxy_id: Optional[str] = None
+    rule_type: Optional[IpAccessRuleType] = None
+    cidr: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    enabled: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class IpAccessRuleResponse(IpAccessRuleBase):
+    id: int
+
+
+class GeoRuleMode(str, Enum):
+    BLOCK = "block"
+    ALLOW = "allow"
+
+
+class GeoRuleBase(BaseModel):
+    proxy_id: str
+    mode: GeoRuleMode = GeoRuleMode.BLOCK
+    countries: List[str] = Field(default_factory=list)
+    default_policy: str = "allow"
+    enabled: bool = False
+
+
+class GeoRuleCreate(GeoRuleBase):
+    pass
+
+
+class GeoRuleUpdate(BaseModel):
+    proxy_id: Optional[str] = None
+    mode: Optional[GeoRuleMode] = None
+    countries: Optional[List[str]] = None
+    default_policy: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
+class GeoRuleResponse(GeoRuleBase):
+    id: int
+
+
+class ThreatFeedType(str, Enum):
+    CIDR = "cidr"
+    IP = "ip"
+
+
+class ThreatFeedBase(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    url: str = Field(min_length=1, max_length=512)
+    feed_type: ThreatFeedType = ThreatFeedType.CIDR
+    enabled: bool = False
+
+
+class ThreatFeedCreate(ThreatFeedBase):
+    pass
+
+
+class ThreatFeedUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    url: Optional[str] = Field(default=None, min_length=1, max_length=512)
+    feed_type: Optional[ThreatFeedType] = None
+    enabled: Optional[bool] = None
+
+
+class ThreatFeedResponse(ThreatFeedBase):
+    id: int
+    last_sync_at: Optional[datetime] = None
+    ip_count: int = 0
+    last_error: Optional[str] = None
+
+
+class WafMode(str, Enum):
+    DETECTION = "detection"
+    BLOCKING = "blocking"
+
+
+class WafProfile(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class ProxyWafSettingsBase(BaseModel):
+    enabled: bool = False
+    mode: WafMode = WafMode.DETECTION
+    profile: WafProfile = WafProfile.MEDIUM
+    exclusions: List[str] = Field(default_factory=list)
+
+
+class ProxyWafSettingsUpdate(ProxyWafSettingsBase):
+    pass
+
+
+class ProxyWafSettingsResponse(ProxyWafSettingsBase):
+    proxy_id: str
+
+
+class SecurityEventResponse(BaseModel):
+    id: int
+    event_type: str
+    source: str
+    client_ip: Optional[str] = None
+    proxy_id: Optional[str] = None
+    message: str
+    created_at: datetime
+
+
+class SecurityEventListResponse(BaseModel):
+    items: List[SecurityEventResponse]
+    total: int
+    page: int
+    page_size: int

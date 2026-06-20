@@ -13,6 +13,10 @@ from app.schemas import (
     ProxyAppCreate,
     ProxyAppResponse,
     ProxyAppUpdate,
+    ProxyRateLimitResponse,
+    ProxyRateLimitUpdate,
+    ProxyTrafficStatsResponse,
+    ProxyTrafficSummary,
     TrafficDebugResponse,
     TrafficFlowTestResult,
 )
@@ -24,8 +28,25 @@ from app.services.nginx_ops import NginxOps
 from app.services.proxy_service import ProxyService
 from app.services.traffic_flow_service import TrafficFlowService
 from app.services.traffic_debug_service import TrafficDebugService
+from app.services.proxy_traffic_service import ProxyTrafficService
+from app.services.rate_limit_service import RateLimitService
 
 router = APIRouter(prefix="/proxies", tags=["proxies"])
+
+
+def _dispatch_nginx_failure(
+    db: Session,
+    settings: Settings,
+    failure_stage: str | None,
+    output: str,
+) -> None:
+    if not failure_stage:
+        return
+    notifications = NotificationService(settings, db)
+    if failure_stage == "validation":
+        notifications.dispatch_validation_failed(output)
+    elif failure_stage == "reload":
+        notifications.dispatch_reload_failed(output)
 
 
 def get_service(
@@ -63,8 +84,9 @@ async def create_proxy(
     service: ProxyService = Depends(get_service),
     user: User = Depends(require_permission(Permission.CREATE)),
 ) -> ProxyAppResponse:
-    ok, output, proxy = service.create_proxy(payload)
+    ok, output, proxy, failure = service.create_proxy(payload, username=user.username)
     if not ok or not proxy:
+        _dispatch_nginx_failure(db, get_settings(), failure, output)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
     log_audit(
         db,
@@ -88,8 +110,9 @@ async def update_proxy(
     user: User = Depends(require_permission(Permission.EDIT)),
 ) -> ProxyAppResponse:
     old = service.get_proxy(proxy_id)
-    ok, output, proxy = service.update_proxy(proxy_id, payload)
+    ok, output, proxy, failure = service.update_proxy(proxy_id, payload, username=user.username)
     if not ok or not proxy:
+        _dispatch_nginx_failure(db, get_settings(), failure, output)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
     log_audit(
         db,
@@ -113,8 +136,9 @@ async def delete_proxy(
     user: User = Depends(require_permission(Permission.EDIT)),
 ) -> MessageResponse:
     old = service.get_proxy(proxy_id)
-    ok, output = service.delete_proxy(proxy_id)
+    ok, output, failure = service.delete_proxy(proxy_id, username=user.username)
     if not ok:
+        _dispatch_nginx_failure(db, get_settings(), failure, output)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
     log_audit(
         db,
@@ -136,7 +160,7 @@ async def enable_proxy(
     service: ProxyService = Depends(get_service),
     user: User = Depends(require_permission(Permission.EDIT)),
 ) -> ProxyAppResponse:
-    ok, output, proxy = service.set_enabled(proxy_id, True)
+    ok, output, proxy, failure = service.set_enabled(proxy_id, True)
     log_audit(
         db,
         username=user.username,
@@ -146,6 +170,7 @@ async def enable_proxy(
         new_value={"enabled": True},
     )
     if not ok or not proxy:
+        _dispatch_nginx_failure(db, get_settings(), failure, output)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
     return proxy
 
@@ -158,7 +183,7 @@ async def disable_proxy(
     service: ProxyService = Depends(get_service),
     user: User = Depends(require_permission(Permission.EDIT)),
 ) -> ProxyAppResponse:
-    ok, output, proxy = service.set_enabled(proxy_id, False)
+    ok, output, proxy, failure = service.set_enabled(proxy_id, False)
     log_audit(
         db,
         username=user.username,
@@ -168,6 +193,7 @@ async def disable_proxy(
         new_value={"enabled": False},
     )
     if not ok or not proxy:
+        _dispatch_nginx_failure(db, get_settings(), failure, output)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
     return proxy
 
@@ -212,6 +238,83 @@ async def test_flow_existing(
         enabled=proxy.enabled,
     )
     return TrafficFlowService(settings).test_traffic_flow(payload)
+
+
+@router.get("/{proxy_id}/rate-limit", response_model=ProxyRateLimitResponse)
+async def get_proxy_rate_limit(
+    proxy_id: str,
+    service: ProxyService = Depends(get_service),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_permission(Permission.READ)),
+) -> ProxyRateLimitResponse:
+    if not service.get_proxy(proxy_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proxy not found")
+    return RateLimitService(db).get(proxy_id)
+
+
+@router.put("/{proxy_id}/rate-limit", response_model=ProxyRateLimitResponse)
+async def update_proxy_rate_limit(
+    proxy_id: str,
+    payload: ProxyRateLimitUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    service: ProxyService = Depends(get_service),
+    user: User = Depends(require_permission(Permission.EDIT)),
+) -> ProxyRateLimitResponse:
+    proxy = service.get_proxy(proxy_id)
+    if not proxy:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proxy not found")
+    result = RateLimitService(db).upsert(proxy_id, payload)
+    from app.schemas import ProxyAppUpdate
+
+    update_payload = ProxyAppUpdate(
+        name=proxy.name,
+        domains=proxy.domains,
+        routes=proxy.routes,
+        custom_headers=proxy.custom_headers,
+        max_body_size=proxy.max_body_size,
+        basic_auth_enabled=proxy.basic_auth_enabled,
+        force_https=proxy.force_https,
+        enabled=proxy.enabled,
+        notes=proxy.notes,
+    )
+    ok, output, _, failure = service.update_proxy(proxy_id, update_payload)
+    if not ok:
+        _dispatch_nginx_failure(db, get_settings(), failure, output)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
+    log_audit(
+        db,
+        username=user.username,
+        action="update_proxy_rate_limit",
+        resource=proxy_id,
+        client_ip=_client_ip(request),
+        new_value=payload.model_dump(),
+    )
+    return result
+
+
+@router.get("/traffic/summary", response_model=list[ProxyTrafficSummary])
+async def proxy_traffic_summary(
+    range: str = Query(default="24h", pattern="^(24h|7d|30d)$"),
+    settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_permission(Permission.READ)),
+) -> list[ProxyTrafficSummary]:
+    return ProxyTrafficService(settings, db).list_summary(range)
+
+
+@router.get("/{proxy_id}/traffic-stats", response_model=ProxyTrafficStatsResponse)
+async def proxy_traffic_stats(
+    proxy_id: str,
+    range: str = Query(default="24h", pattern="^(24h|7d|30d)$"),
+    settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_permission(Permission.READ)),
+) -> ProxyTrafficStatsResponse:
+    stats = ProxyTrafficService(settings, db).get_proxy_stats(proxy_id, range)
+    if not stats:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proxy not found")
+    return stats
 
 
 @router.get("/{proxy_id}/traffic-debug", response_model=TrafficDebugResponse)

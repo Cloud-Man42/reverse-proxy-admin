@@ -1,14 +1,15 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { Card } from "../components/Card";
 import { StatusBadge } from "../components/StatusBadge";
 import { TrafficDebugPanel } from "../components/TrafficDebugPanel";
+import { ConfigHistoryPanel } from "./ConfigHistoryPage";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { toPayload } from "../lib/proxyPayload";
-import { ProxyFormData, ProxyRouteFormData, TrafficFlowTestResult } from "../types";
+import { ProxyFormData, ProxyRateLimitSettings, ProxyRouteFormData, ProxyTemplate, TrafficFlowTestResult, defaultRateLimit } from "../types";
 
 const FLOW_CHECK_LABELS: Record<string, string> = {
   input_validation: "Input validation",
@@ -39,16 +40,45 @@ const emptyForm: ProxyFormData = {
   basic_auth_password: "",
   force_https: false,
   enabled: true,
+  notes: "",
+  rate_limit: defaultRateLimit(),
 };
+
+function applyTemplateDefaults(form: ProxyFormData, template: ProxyTemplate): ProxyFormData {
+  const defaults = template.defaults || {};
+  const routes =
+    defaults.routes && defaults.routes.length
+      ? defaults.routes.map((route) => ({
+          path_prefix: route.path_prefix || "/",
+          target_protocol: route.target_protocol || "http",
+          target_host: route.target_host || "",
+          target_port: route.target_port || 8080,
+          websocket_enabled: Boolean(route.websocket_enabled),
+          use_pool: false,
+          backend_pool_id: null,
+        }))
+      : form.routes;
+  return {
+    ...form,
+    routes,
+    force_https: defaults.force_https ?? form.force_https,
+    max_body_size: defaults.max_body_size ?? form.max_body_size,
+    enabled: defaults.enabled ?? form.enabled,
+    notes: defaults.notes ?? form.notes,
+  };
+}
 
 export function ProxyFormPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const templateSlug = searchParams.get("template");
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showSuccess, showError } = useToast();
   const { canCreate, canEdit, canRead } = useAuth();
   const [form, setForm] = useState<ProxyFormData>(emptyForm);
+  const [activeTab, setActiveTab] = useState<"form" | "history">("form");
   const [flowResult, setFlowResult] = useState<TrafficFlowTestResult | null>(null);
   const [testingFlow, setTestingFlow] = useState(false);
 
@@ -56,6 +86,17 @@ export function ProxyFormPage() {
     queryKey: ["proxy", id],
     queryFn: () => api.getProxy(id!),
     enabled: isEdit,
+  });
+
+  const { data: backendPools = [] } = useQuery({
+    queryKey: ["backend-pools", id ?? form.name],
+    queryFn: () => api.listBackendPools(isEdit ? id : undefined),
+  });
+
+  const { data: templateData } = useQuery({
+    queryKey: ["template", templateSlug],
+    queryFn: () => api.getTemplate(templateSlug!),
+    enabled: !isEdit && Boolean(templateSlug),
   });
 
   useEffect(() => {
@@ -81,9 +122,17 @@ export function ProxyFormPage() {
         basic_auth_password: "",
         force_https: data.force_https,
         enabled: data.enabled,
+        notes: data.notes || "",
+        rate_limit: data.rate_limit ?? defaultRateLimit(),
       });
     }
   }, [data]);
+
+  useEffect(() => {
+    if (!isEdit && templateData) {
+      setForm((current) => applyTemplateDefaults(current, templateData));
+    }
+  }, [isEdit, templateData]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -148,6 +197,22 @@ export function ProxyFormPage() {
     );
   };
 
+  const addHeader = () => update("custom_headers", [...form.custom_headers, { name: "", value: "" }]);
+
+  const updateHeader = (index: number, field: "name" | "value", value: string) =>
+    setForm((prev) => ({
+      ...prev,
+      custom_headers: prev.custom_headers.map((header, headerIndex) =>
+        headerIndex === index ? { ...header, [field]: value } : header,
+      ),
+    }));
+
+  const removeHeader = (index: number) =>
+    update(
+      "custom_headers",
+      form.custom_headers.filter((_, headerIndex) => headerIndex !== index),
+    );
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -157,6 +222,34 @@ export function ProxyFormPage() {
         </Link>
       </div>
 
+      {isEdit ? (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className={`rounded-lg px-3 py-2 text-sm ${activeTab === "form" ? "bg-accent text-white" : "bg-white/10"}`}
+            onClick={() => setActiveTab("form")}
+          >
+            Settings
+          </button>
+          <button
+            type="button"
+            className={`rounded-lg px-3 py-2 text-sm ${activeTab === "history" ? "bg-accent text-white" : "bg-white/10"}`}
+            onClick={() => setActiveTab("history")}
+          >
+            Config history
+          </button>
+        </div>
+      ) : null}
+
+      {!isEdit && templateData ? (
+        <p className="text-sm text-white/60">
+          Using template: <span className="font-medium text-white">{templateData.name}</span>
+        </p>
+      ) : null}
+
+      {isEdit && activeTab === "history" && id ? <ConfigHistoryPanel proxyId={id} /> : null}
+
+      {(!isEdit || activeTab === "form") && (
       <Card>
         <form className="grid gap-4 md:grid-cols-2" onSubmit={onSubmit}>
           <div>
@@ -182,7 +275,8 @@ export function ProxyFormPage() {
             </div>
             <div className="space-y-3">
               {form.routes.map((route, index) => (
-                <div key={index} className="grid gap-3 rounded-lg border border-white/10 bg-black/20 p-3 md:grid-cols-6">
+                <div key={index} className="space-y-3 rounded-lg border border-white/10 bg-black/20 p-3">
+                  <div className="grid gap-3 md:grid-cols-6">
                   <div>
                     <label className="mb-1 block text-xs">Path prefix</label>
                     <input
@@ -192,6 +286,38 @@ export function ProxyFormPage() {
                       required
                     />
                   </div>
+                  <label className="flex items-end gap-2 pb-2 text-xs md:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={route.use_pool}
+                      onChange={(e) => {
+                        updateRoute(index, "use_pool", e.target.checked);
+                        if (!e.target.checked) updateRoute(index, "backend_pool_id", null);
+                      }}
+                    />
+                    Use backend pool
+                  </label>
+                  {route.use_pool ? (
+                    <div className="md:col-span-3">
+                      <label className="mb-1 block text-xs">Backend pool</label>
+                      <select
+                        className="w-full"
+                        value={route.backend_pool_id ?? ""}
+                        onChange={(e) =>
+                          updateRoute(index, "backend_pool_id", e.target.value ? Number(e.target.value) : null)
+                        }
+                        required
+                      >
+                        <option value="">Select pool…</option>
+                        {backendPools.map((pool) => (
+                          <option key={pool.id} value={pool.id}>
+                            {pool.name} ({pool.route_path})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <>
                   <div>
                     <label className="mb-1 block text-xs">Protocol</label>
                     <select
@@ -207,7 +333,7 @@ export function ProxyFormPage() {
                     <input
                       value={route.target_host}
                       onChange={(e) => updateRoute(index, "target_host", e.target.value)}
-                      required
+                      required={!route.use_pool}
                     />
                   </div>
                   <div>
@@ -216,9 +342,11 @@ export function ProxyFormPage() {
                       type="number"
                       value={route.target_port}
                       onChange={(e) => updateRoute(index, "target_port", Number(e.target.value))}
-                      required
+                      required={!route.use_pool}
                     />
                   </div>
+                    </>
+                  )}
                   <label className="flex items-end gap-2 pb-2 text-xs">
                     <input
                       type="checkbox"
@@ -237,6 +365,7 @@ export function ProxyFormPage() {
                       Remove
                     </button>
                   </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -245,6 +374,53 @@ export function ProxyFormPage() {
           <div>
             <label className="mb-1 block text-sm">Max body size</label>
             <input value={form.max_body_size} onChange={(e) => update("max_body_size", e.target.value)} placeholder="50m" />
+          </div>
+
+          <div className="md:col-span-2">
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-sm font-medium">Custom headers</label>
+              <button type="button" className="rounded-lg bg-white/10 px-3 py-1 text-sm" onClick={addHeader}>
+                Add header
+              </button>
+            </div>
+            {form.custom_headers.length === 0 ? (
+              <p className="text-xs text-white/50">No custom headers configured.</p>
+            ) : (
+              <div className="space-y-2">
+                {form.custom_headers.map((header, index) => (
+                  <div key={index} className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+                    <input
+                      placeholder="Header name"
+                      value={header.name}
+                      onChange={(e) => updateHeader(index, "name", e.target.value)}
+                    />
+                    <input
+                      placeholder="Header value"
+                      value={header.value}
+                      onChange={(e) => updateHeader(index, "value", e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="rounded bg-red-600/70 px-2 py-1 text-xs text-white"
+                      onClick={() => removeHeader(index)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-sm">Notes</label>
+            <textarea
+              className="w-full rounded-lg bg-black/20 px-3 py-2 text-sm"
+              rows={3}
+              value={form.notes}
+              onChange={(e) => update("notes", e.target.value)}
+              placeholder="Internal notes about this proxy (not written to nginx config)"
+            />
           </div>
 
           <label className="flex items-center gap-2 text-sm md:col-span-2">
@@ -282,6 +458,77 @@ export function ProxyFormPage() {
             </>
           ) : null}
 
+          <div className="md:col-span-2 rounded-lg border border-white/10 bg-black/20 p-4">
+            <div className="mb-3">
+              <h3 className="text-sm font-medium">Rate limiting</h3>
+              <p className="text-xs text-white/60">Apply nginx limit_req per client IP or URI.</p>
+            </div>
+            <label className="mb-3 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.rate_limit.enabled}
+                onChange={(e) =>
+                  update("rate_limit", { ...form.rate_limit, enabled: e.target.checked })
+                }
+              />
+              Enable rate limiting
+            </label>
+            {form.rate_limit.enabled ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs">Requests per minute</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.rate_limit.requests_per_minute}
+                    onChange={(e) =>
+                      update("rate_limit", {
+                        ...form.rate_limit,
+                        requests_per_minute: Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs">Burst</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.rate_limit.burst}
+                    onChange={(e) =>
+                      update("rate_limit", { ...form.rate_limit, burst: Number(e.target.value) })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs">Key type</label>
+                  <select
+                    value={form.rate_limit.key_type}
+                    onChange={(e) =>
+                      update("rate_limit", {
+                        ...form.rate_limit,
+                        key_type: e.target.value as ProxyRateLimitSettings["key_type"],
+                      })
+                    }
+                  >
+                    <option value="client_ip">Client IP</option>
+                    <option value="uri">URI</option>
+                  </select>
+                </div>
+                <label className="flex items-end gap-2 pb-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={form.rate_limit.nodelay}
+                    onChange={(e) =>
+                      update("rate_limit", { ...form.rate_limit, nodelay: e.target.checked })
+                    }
+                  />
+                  No delay (nodelay)
+                </label>
+              </div>
+            ) : null}
+          </div>
+
           <div className="flex flex-wrap gap-2 md:col-span-2">
             <button type="submit" className="rounded-lg bg-accent px-4 py-2 text-sm text-white" disabled={mutation.isPending}>
               {mutation.isPending ? "Saving..." : "Save"}
@@ -299,6 +546,7 @@ export function ProxyFormPage() {
           </div>
         </form>
       </Card>
+      )}
 
       {flowResult ? (
         <Card title="Traffic flow test">

@@ -57,6 +57,30 @@ class HealthCheckService:
         self._maybe_notify(server, previous, status.value)
         return result
 
+    def run_server(self, server_id: int) -> Optional[HealthCheckResultResponse]:
+        server = (
+            self.db.query(BackendServer)
+            .options(joinedload(BackendServer.pool))
+            .filter(BackendServer.id == server_id)
+            .first()
+        )
+        if not server:
+            return None
+        result = self.check_server(server)
+        self.db.commit()
+        self.db.refresh(result)
+        return HealthCheckResultResponse(
+            id=result.id,
+            server_id=result.server_id,
+            server_name=server.name,
+            pool_name=server.pool.name if server.pool else "",
+            status=HealthStatus(result.status),
+            response_ms=result.response_ms,
+            http_status=result.http_status,
+            error=result.error,
+            checked_at=result.checked_at,
+        )
+
     def _perform_check(
         self, server: BackendServer
     ) -> tuple[HealthStatus, Optional[float], Optional[int], Optional[str]]:
@@ -93,6 +117,15 @@ class HealthCheckService:
     def _maybe_notify(self, server: BackendServer, previous: str, current: str) -> None:
         if previous == current:
             return
+        offline_transition = (
+            current == HealthStatus.OFFLINE.value and previous != HealthStatus.OFFLINE.value
+        ) or (
+            previous == HealthStatus.OFFLINE.value and current != HealthStatus.OFFLINE.value
+        )
+        if offline_transition:
+            from app.services.nginx_regen_service import NginxRegenService
+
+            NginxRegenService.queue_for_server(server)
         if current == HealthStatus.OFFLINE.value and previous != HealthStatus.OFFLINE.value:
             from app.services.notification_service import NotificationService
 

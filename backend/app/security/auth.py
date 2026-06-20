@@ -54,13 +54,25 @@ def delete_session(db: Session, session_id: str) -> None:
 
 
 def bootstrap_admin(db: Session, settings: Settings) -> None:
+    from app.security.tenant_context import bootstrap_default_organization
+
+    default_org = bootstrap_default_organization(db)
     existing = db.query(User).filter(User.username == settings.admin_username).first()
     if existing:
+        changed = False
         if not existing.is_admin:
             existing.is_admin = True
             existing.perm_read = True
             existing.perm_create = True
             existing.perm_edit = True
+            changed = True
+        if existing.role != "super_admin":
+            existing.role = "super_admin"
+            changed = True
+        if existing.organization_id != default_org.id:
+            existing.organization_id = default_org.id
+            changed = True
+        if changed:
             db.commit()
         return
     if not settings.admin_password:
@@ -72,6 +84,8 @@ def bootstrap_admin(db: Session, settings: Settings) -> None:
         perm_read=True,
         perm_create=True,
         perm_edit=True,
+        role="super_admin",
+        organization_id=default_org.id,
     )
     db.add(user)
     db.commit()

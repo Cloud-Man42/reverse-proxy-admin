@@ -44,8 +44,10 @@ from sqlalchemy.orm import sessionmaker
 
 from app.config import Settings, get_settings
 from app.db import Base, get_db
+import app.models  # noqa: F401 — register all models for create_all
 from app.main import app
 from app.security.auth import bootstrap_admin, hash_password
+from app.security.tenant_context import assign_orphan_records_to_default_org, bootstrap_default_organization
 from app.models.user import User
 
 
@@ -92,6 +94,8 @@ def db_session(temp_settings: Settings):
     Base.metadata.create_all(bind=engine)
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = session_factory()
+    default_org = bootstrap_default_organization(session)
+    assign_orphan_records_to_default_org(session, default_org.id)
     bootstrap_admin(session, temp_settings)
     try:
         yield session
@@ -154,6 +158,7 @@ def viewer_session(client: TestClient, db_session) -> dict:
         perm_read=True,
         perm_create=False,
         perm_edit=False,
+        role="read_only",
     )
     db_session.add(viewer)
     db_session.commit()

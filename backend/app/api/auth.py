@@ -13,6 +13,7 @@ from app.security.ip_allowlist import _client_ip, ip_allowlist_middleware
 from app.security.rate_limit import RateLimiter
 from app.services.audit_service import log_audit
 from app.services.notification_service import NotificationService
+from app.services.security_event_service import SecurityEventService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -23,6 +24,8 @@ def _login_response(user: User, csrf_token: str) -> LoginResponse:
         csrf_token=csrf_token,
         is_admin=user.is_admin,
         permissions=user.permissions_dict(),
+        organization_id=user.organization_id,
+        role=user.role or "operator",
     )
 
 
@@ -38,6 +41,12 @@ async def login(
     client_ip = _client_ip(request)
     limiter = RateLimiter(settings.login_rate_limit_attempts, settings.login_rate_limit_window_seconds)
     if not limiter.is_allowed(client_ip):
+        SecurityEventService(db).log(
+            event_type="login_rate_limited",
+            source="login",
+            client_ip=client_ip,
+            message=f"Login rate limit exceeded for {client_ip}",
+        )
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many login attempts")
 
     user = db.query(User).filter(User.username == payload.username, User.is_active.is_(True)).first()
@@ -48,6 +57,12 @@ async def login(
             action="login_failed",
             resource="auth",
             client_ip=client_ip,
+        )
+        SecurityEventService(db).log(
+            event_type="login_failed",
+            source="login",
+            client_ip=client_ip,
+            message=f"Failed login attempt for user {payload.username}",
         )
         NotificationService(settings, db).dispatch_login_security(payload.username, client_ip, success=False)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")

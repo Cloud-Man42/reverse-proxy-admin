@@ -5,17 +5,23 @@ import { useTheme } from "../hooks/useAutoRefresh";
 const links = [
   { to: "/", label: "Dashboard" },
   { to: "/proxies", label: "Proxy Apps" },
+  { to: "/templates", label: "Templates" },
   { to: "/backend-pools", label: "Backend Pools" },
   { to: "/health", label: "Health" },
+  { to: "/analytics", label: "Analytics" },
   { to: "/certificates", label: "Certificates" },
   { to: "/logs", label: "Logs" },
   { to: "/system", label: "System" },
   { to: "/settings", label: "Settings", adminOnly: true },
+  { to: "/security", label: "Security", adminOnly: true },
+  { to: "/audit", label: "Audit", adminOnly: true },
+  { to: "/api-tokens", label: "API Tokens", adminOnly: true },
   { to: "/about", label: "About" },
   { to: "/users", label: "Users", adminOnly: true },
+  { to: "/tenants", label: "Tenants", superAdminOnly: true },
 ];
 export function Layout() {
-  const { username, logout, isAdmin } = useAuth();
+  const { username, logout, isAdmin, isSuperAdmin } = useAuth();
   const { dark, toggle } = useTheme();
 
   return (
@@ -38,7 +44,11 @@ export function Layout() {
         </div>
         <nav className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 pb-3">
           {links
-            .filter((link) => !link.adminOnly || isAdmin)
+            .filter((link) => {
+              if (link.superAdminOnly) return isSuperAdmin;
+              if (link.adminOnly) return isAdmin;
+              return true;
+            })
             .map((link) => (
             <NavLink
               key={link.to}

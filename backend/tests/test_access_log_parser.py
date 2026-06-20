@@ -15,6 +15,17 @@ def test_parse_combined_access_line():
     assert parsed.bytes_sent == 1673
 
 
+def test_parse_proxy_debug_line_with_latency():
+    line = (
+        "203.0.113.10|17/Jun/2026:13:08:39 +0000|portal.example.com|"
+        "GET /login HTTP/1.1|200|512|256|128|384|-|curl/8.0|0.125|0.050"
+    )
+    parsed = parse_access_line(line)
+    assert parsed is not None
+    assert parsed.request_time == 0.125
+    assert parsed.upstream_response_time == 0.050
+
+
 def test_parse_proxy_debug_line():
     line = (
         "203.0.113.10|17/Jun/2026:13:08:39 +0000|portal.example.com|"

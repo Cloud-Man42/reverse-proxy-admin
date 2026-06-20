@@ -21,6 +21,8 @@ Production-ready web administration tool for managing Nginx reverse proxy config
 
 See [Enterprise Features](docs/ENTERPRISE_FEATURES.md) for load balancing, health checks, SMTP, and alerting details.
 
+See [Roadmap](docs/ROADMAP.md) for V1–V4 feature status.
+
 ## Architecture
 
 - Backend: FastAPI on `127.0.0.1:8080`
@@ -291,15 +293,63 @@ sudo systemctl reload nginx
 - Do not expose the admin UI publicly; keep it on internal IP/VPN only
 - Use strong `SECRET_KEY` and admin password
 - Review `ALLOWED_IPS` regularly
-- Audit log available at `GET /api/audit`
+- Audit log available at `GET /api/audit` and **Audit** page (`/audit`)
+- Security features (IP rules, geo blocking, WAF, threat feeds) at `/security`
 - All subprocess calls use argument lists (`shell=False`)
 - Input validation blocks shell injection patterns
+
+## Deployment: GeoIP blocking
+
+Geo blocking requires the nginx GeoIP2 module and a MaxMind GeoLite2 database:
+
+```bash
+sudo bash deploy/setup-geoip.sh
+```
+
+After setup, configure geo rules per proxy under **Security → Geo blocking**.
+
+## Deployment: ModSecurity WAF
+
+WAF integration requires ModSecurity and the OWASP CRS:
+
+```bash
+sudo bash deploy/setup-modsecurity.sh
+```
+
+Configure per-proxy WAF mode and profile under **Security → WAF**.
+
+## API tokens
+
+Create scoped Bearer tokens under **API Tokens** (admin only). Tokens authenticate against `/api/v1/*` endpoints.
+
+Example:
+
+```bash
+curl -H "Authorization: Bearer rpa_..." https://127.0.0.1:8443/api/v1/proxies
+```
+
+Revoke unused tokens promptly. Token hashes are stored server-side; the plain token is shown once at creation.
+
+## Backup
+
+### Application database
+
+```bash
+sudo cp /var/lib/reverse-proxy-admin/app.db /var/lib/reverse-proxy-admin/backups/app-$(date +%Y%m%d).db
+```
+
+### Nginx configs and security snippets
+
+Security include files live in `/var/lib/reverse-proxy-admin/security/` (IP rules, geo, WAF, threat feeds). Include this directory in your backup strategy alongside nginx site configs.
 
 ## API overview
 
 - `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
 - `GET/POST/PUT/DELETE /api/proxies`
 - `POST /api/proxies/{id}/enable|disable`
+- `GET/POST/PUT/DELETE /api/security/ip-rules`, `/api/security/geo-rules`, `/api/security/threat-feeds`
+- `GET/PUT /api/security/waf/{proxy_id}`, `GET /api/security/events`
+- `GET /api/audit`, `GET /api/audit/export`, `GET /api/security/events/export`
 - `GET /api/certificates`, `POST /api/certificates`, renew/dry-run actions
 - `GET /api/logs/error`, `GET /api/logs/access`
 - `GET /api/dashboard`, `GET /api/system/health`, nginx test/reload/status

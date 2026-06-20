@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.config import Settings
 from app.models.backend_server import BackendServer
 from app.models.notification import NotificationLog, NotificationPreference, NotificationRecipient
+from app.models.user import User
 from app.schemas import (
     NotificationEventType,
     NotificationLogResponse,
@@ -14,6 +15,7 @@ from app.schemas import (
     NotificationRecipientResponse,
     NotificationRecipientUpdate,
 )
+from app.security.tenant_context import filter_query_by_org, get_current_org
 from app.services.smtp_service import SmtpService
 
 CRITICAL_EVENTS = {
@@ -27,18 +29,25 @@ CRITICAL_EVENTS = {
 
 
 class NotificationService:
-    def __init__(self, settings: Settings, db: Session) -> None:
+    def __init__(self, settings: Settings, db: Session, user: Optional[User] = None) -> None:
         self.settings = settings
         self.db = db
+        self.user = user
         self.smtp = SmtpService(settings, db)
 
+    def _recipient_query(self):
+        query = self.db.query(NotificationRecipient).options(joinedload(NotificationRecipient.preferences))
+        if self.user:
+            query = filter_query_by_org(query, NotificationRecipient, self.user)
+        return query
+
+    def _default_org_id(self) -> Optional[int]:
+        if self.user:
+            return get_current_org(self.user) or self.user.organization_id
+        return None
+
     def list_recipients(self) -> list[NotificationRecipientResponse]:
-        rows = (
-            self.db.query(NotificationRecipient)
-            .options(joinedload(NotificationRecipient.preferences))
-            .order_by(NotificationRecipient.name)
-            .all()
-        )
+        rows = self._recipient_query().order_by(NotificationRecipient.name).all()
         return [self._recipient_response(row) for row in rows]
 
     def create_recipient(self, payload: NotificationRecipientCreate) -> NotificationRecipientResponse:
@@ -46,6 +55,7 @@ class NotificationService:
             name=payload.name,
             email=payload.email,
             enabled=payload.enabled,
+            organization_id=self._default_org_id(),
         )
         self.db.add(recipient)
         self.db.flush()
@@ -62,12 +72,7 @@ class NotificationService:
         return self._recipient_response(recipient)
 
     def update_recipient(self, recipient_id: int, payload: NotificationRecipientUpdate) -> Optional[NotificationRecipientResponse]:
-        recipient = (
-            self.db.query(NotificationRecipient)
-            .options(joinedload(NotificationRecipient.preferences))
-            .filter(NotificationRecipient.id == recipient_id)
-            .first()
-        )
+        recipient = self._recipient_query().filter(NotificationRecipient.id == recipient_id).first()
         if not recipient:
             return None
         data = payload.model_dump(exclude_unset=True)
@@ -90,7 +95,7 @@ class NotificationService:
         return self._recipient_response(recipient)
 
     def delete_recipient(self, recipient_id: int) -> bool:
-        recipient = self.db.query(NotificationRecipient).filter(NotificationRecipient.id == recipient_id).first()
+        recipient = self._recipient_query().filter(NotificationRecipient.id == recipient_id).first()
         if not recipient:
             return False
         self.db.delete(recipient)
@@ -99,6 +104,12 @@ class NotificationService:
 
     def list_logs(self, page: int = 1, page_size: int = 50) -> tuple[list[NotificationLogResponse], int]:
         query = self.db.query(NotificationLog)
+        if self.user and not self.user.is_super_admin():
+            org_emails = [row.email for row in self._recipient_query().with_entities(NotificationRecipient.email).all()]
+            if org_emails:
+                query = query.filter(NotificationLog.recipient_email.in_(org_emails))
+            else:
+                query = query.filter(NotificationLog.id == -1)
         total = query.count()
         rows = (
             query.order_by(NotificationLog.created_at.desc())
@@ -210,6 +221,30 @@ class NotificationService:
             else NotificationEventType.NGINX_RELOAD_FAILED
         )
         self.dispatch(event, f"NGINX {action} failed", output, severity="critical")
+
+    def dispatch_validation_failed(self, output: str) -> None:
+        self.dispatch(
+            NotificationEventType.NGINX_VALIDATION_FAILED,
+            "NGINX config test failed",
+            output,
+            severity="critical",
+        )
+
+    def dispatch_reload_failed(self, output: str) -> None:
+        self.dispatch(
+            NotificationEventType.NGINX_RELOAD_FAILED,
+            "NGINX reload failed",
+            output,
+            severity="critical",
+        )
+
+    def dispatch_ssl_renewed(self, domain: str) -> None:
+        self.dispatch(
+            NotificationEventType.SSL_RENEWED,
+            "SSL Certificate Renewed",
+            f"Certificate for '{domain}' was renewed successfully.",
+            severity="info",
+        )
 
     def dispatch_proxy_event(self, event_type: NotificationEventType, proxy_name: str) -> None:
         labels = {

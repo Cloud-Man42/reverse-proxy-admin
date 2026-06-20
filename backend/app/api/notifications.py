@@ -12,6 +12,7 @@ from app.schemas import (
     NotificationRecipientUpdate,
 )
 from app.security.ip_allowlist import _client_ip
+from app.security.auth import get_current_user
 from app.security.permissions import require_admin
 from app.services.audit_service import log_audit
 from app.services.notification_service import NotificationService
@@ -19,8 +20,12 @@ from app.services.notification_service import NotificationService
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
-def get_service(settings: Settings = Depends(get_settings), db: Session = Depends(get_db)) -> NotificationService:
-    return NotificationService(settings, db)
+def get_service(
+    settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> NotificationService:
+    return NotificationService(settings, db, user=user)
 
 
 @router.get("/recipients", response_model=list[NotificationRecipientResponse])

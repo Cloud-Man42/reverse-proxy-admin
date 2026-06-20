@@ -88,6 +88,14 @@ export const api = {
     request<import("../types").TrafficFlowTestResult>(`/api/proxies/${id}/test-flow`, { method: "POST" }),
   proxyTrafficDebug: (id: string, lines = 100) =>
     request<import("../types").TrafficDebugResponse>(`/api/proxies/${id}/traffic-debug?lines=${lines}`),
+  proxyTrafficSummary: (range = "24h") =>
+    request<import("../types").ProxyTrafficSummary[]>(`/api/proxies/traffic/summary?range=${range}`),
+  proxyTrafficStats: (id: string, range = "24h") =>
+    request<import("../types").ProxyTrafficStats>(`/api/proxies/${id}/traffic-stats?range=${range}`),
+  analyticsSummary: (range = "24h") =>
+    request<import("../types").AnalyticsSummaryResponse>(`/api/analytics/summary?range=${range}`),
+  analyticsProxy: (id: string, range = "24h") =>
+    request<import("../types").AnalyticsProxyDetail>(`/api/analytics/proxy-hosts/${id}?range=${range}`),
   listUsers: () => request<import("../types").UserAccount[]>("/api/users"),
   createUser: (payload: unknown) =>
     request<import("../types").UserAccount>("/api/users", { method: "POST", body: JSON.stringify(payload) }),
@@ -161,6 +169,18 @@ export const api = {
     }),
   deleteNotificationRecipient: (id: number) =>
     request<import("../types").MessageResponse>(`/api/notifications/recipients/${id}`, { method: "DELETE" }),
+  listNotificationLog: (page = 1, pageSize = 50) =>
+    request<import("../types").NotificationLogEntry[]>(
+      `/api/notifications/log?page=${page}&page_size=${pageSize}`
+    ),
+  getCertificateRenewalHistory: (certificateName?: string) => {
+    const params = certificateName ? `?certificate_name=${encodeURIComponent(certificateName)}` : "";
+    return request<import("../types").CertificateRenewalLogEntry[]>(`/api/certificates/renewal-history${params}`);
+  },
+  runHealthCheck: (serverId: number) =>
+    request<import("../types").HealthCheckRunResult>(`/api/health-checks/servers/${serverId}/run`, {
+      method: "POST",
+    }),
   getSystemAlertThresholds: () => request<import("../types").SystemAlertThresholds>("/api/system-alerts/thresholds"),
   updateSystemAlertThresholds: (payload: unknown) =>
     request<import("../types").SystemAlertThresholds>("/api/system-alerts/thresholds", {
@@ -168,4 +188,103 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   listAuditLogs: (page = 1) => request<import("../types").AuditLogList>(`/api/audit?page=${page}`),
+  getStatusReportSettings: () => request<import("../types").StatusReportSettings>("/api/status-reports/settings"),
+  updateStatusReportSettings: (payload: unknown) =>
+    request<import("../types").StatusReportSettings>("/api/status-reports/settings", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  sendStatusReport: () =>
+    request<import("../types").MessageResponse>("/api/status-reports/send", { method: "POST" }),
+  listTemplates: () => request<import("../types").ProxyTemplate[]>("/api/templates"),
+  getTemplate: (slug: string) => request<import("../types").ProxyTemplate>(`/api/templates/${slug}`),
+  listConfigVersions: (resourceType?: string, resourceId?: string) => {
+    const params = new URLSearchParams();
+    if (resourceType) params.set("resource_type", resourceType);
+    if (resourceId) params.set("resource_id", resourceId);
+    const query = params.toString();
+    return request<import("../types").ConfigVersion[]>(`/api/config-versions${query ? `?${query}` : ""}`);
+  },
+  getConfigVersion: (id: number) =>
+    request<import("../types").ConfigVersionDetail>(`/api/config-versions/${id}`),
+  compareConfigVersions: (id1: number, id2: number) =>
+    request<import("../types").ConfigVersionCompare>(
+      `/api/config-versions/compare?id1=${id1}&id2=${id2}`
+    ),
+  rollbackConfigVersion: (id: number) =>
+    request<import("../types").ConfigVersionRollbackResult>(`/api/config-versions/${id}/rollback`, {
+      method: "POST",
+    }),
+  listApiTokenScopes: () => request<{ scopes: string[] }>("/api/api-tokens/scopes"),
+  listApiTokens: () => request<import("../types").ApiToken[]>("/api/api-tokens"),
+  createApiToken: (payload: unknown) =>
+    request<import("../types").ApiTokenCreated>("/api/api-tokens", { method: "POST", body: JSON.stringify(payload) }),
+  updateApiToken: (id: number, payload: unknown) =>
+    request<import("../types").ApiToken>(`/api/api-tokens/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  revokeApiToken: (id: number) =>
+    request<import("../types").MessageResponse>(`/api/api-tokens/${id}`, { method: "DELETE" }),
+  listOrganizations: () => request<import("../types").Organization[]>("/api/organizations"),
+  createOrganization: (payload: import("../types").OrganizationFormData) =>
+    request<import("../types").Organization>("/api/organizations", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateOrganization: (id: number, payload: Partial<import("../types").OrganizationFormData>) =>
+    request<import("../types").Organization>(`/api/organizations/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  deleteOrganization: (id: number) =>
+    request<import("../types").MessageResponse>(`/api/organizations/${id}`, { method: "DELETE" }),
+  listIpRules: (scope?: string, proxyId?: string) => {
+    const params = new URLSearchParams();
+    if (scope) params.set("scope", scope);
+    if (proxyId) params.set("proxy_id", proxyId);
+    const query = params.toString();
+    return request<import("../types").IpAccessRule[]>(`/api/security/ip-rules${query ? `?${query}` : ""}`);
+  },
+  createIpRule: (payload: unknown) =>
+    request<import("../types").IpAccessRule>("/api/security/ip-rules", { method: "POST", body: JSON.stringify(payload) }),
+  updateIpRule: (id: number, payload: unknown) =>
+    request<import("../types").IpAccessRule>(`/api/security/ip-rules/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteIpRule: (id: number) =>
+    request<import("../types").MessageResponse>(`/api/security/ip-rules/${id}`, { method: "DELETE" }),
+  listGeoRules: (proxyId?: string) => {
+    const query = proxyId ? `?proxy_id=${encodeURIComponent(proxyId)}` : "";
+    return request<import("../types").GeoRule[]>(`/api/security/geo-rules${query}`);
+  },
+  createGeoRule: (payload: unknown) =>
+    request<import("../types").GeoRule>("/api/security/geo-rules", { method: "POST", body: JSON.stringify(payload) }),
+  updateGeoRule: (id: number, payload: unknown) =>
+    request<import("../types").GeoRule>(`/api/security/geo-rules/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteGeoRule: (id: number) =>
+    request<import("../types").MessageResponse>(`/api/security/geo-rules/${id}`, { method: "DELETE" }),
+  listThreatFeeds: () => request<import("../types").ThreatFeed[]>("/api/security/threat-feeds"),
+  createThreatFeed: (payload: unknown) =>
+    request<import("../types").ThreatFeed>("/api/security/threat-feeds", { method: "POST", body: JSON.stringify(payload) }),
+  updateThreatFeed: (id: number, payload: unknown) =>
+    request<import("../types").ThreatFeed>(`/api/security/threat-feeds/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteThreatFeed: (id: number) =>
+    request<import("../types").MessageResponse>(`/api/security/threat-feeds/${id}`, { method: "DELETE" }),
+  syncThreatFeed: (id: number) =>
+    request<import("../types").ThreatFeed>(`/api/security/threat-feeds/${id}/sync`, { method: "POST" }),
+  getWafSettings: (proxyId: string) =>
+    request<import("../types").ProxyWafSettings>(`/api/security/waf/${proxyId}`),
+  updateWafSettings: (proxyId: string, payload: unknown) =>
+    request<import("../types").ProxyWafSettings>(`/api/security/waf/${proxyId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  listSecurityEvents: (page = 1, pageSize = 50) =>
+    request<import("../types").SecurityEventList>(`/api/security/events?page=${page}&page_size=${pageSize}`),
+  exportAuditLogs: (params: URLSearchParams) =>
+    fetch(`/api/audit/export?${params.toString()}`, { credentials: "include" }),
+  exportSecurityEvents: (params: URLSearchParams) =>
+    fetch(`/api/security/events/export?${params.toString()}`, { credentials: "include" }),
+  listAuditLogsFiltered: (page = 1, pageSize = 50, action?: string, resource?: string) => {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+    if (action) params.set("action", action);
+    if (resource) params.set("resource", resource);
+    return request<import("../types").AuditLogList>(`/api/audit?${params.toString()}`);
+  },
 };

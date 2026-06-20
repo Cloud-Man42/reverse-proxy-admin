@@ -19,5 +19,7 @@ export function toPayload(form: ProxyFormData) {
     basic_auth_password: form.basic_auth_password || null,
     force_https: form.force_https,
     enabled: form.enabled,
+    notes: form.notes.trim() || null,
+    rate_limit: form.rate_limit,
   };
 }

@@ -1,16 +1,23 @@
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models.user import User
-from app.schemas import CertificateCreateRequest, CertificateResponse, CertificateSettingsResponse, MessageResponse
+from app.schemas import (
+    CertificateCreateRequest,
+    CertificateRenewalLogResponse,
+    CertificateResponse,
+    CertificateSettingsResponse,
+    MessageResponse,
+)
 from app.security.permissions import Permission, require_permission
 from app.security.ip_allowlist import _client_ip
 from app.services.audit_service import log_audit
 from app.services.certbot_ops import CertbotOps
+from app.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/certificates", tags=["certificates"])
 
@@ -32,6 +39,17 @@ async def certificate_settings(
     return CertificateSettingsResponse(default_email=default_email, email_configured=configured)
 
 
+@router.get("/renewal-history", response_model=List[CertificateRenewalLogResponse])
+async def renewal_history(
+    certificate_name: Optional[str] = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_permission(Permission.READ)),
+) -> List[CertificateRenewalLogResponse]:
+    return CertbotOps(settings, db).list_renewal_history(certificate_name=certificate_name, limit=limit)
+
+
 @router.post("", response_model=MessageResponse)
 async def issue_certificate(
     payload: CertificateCreateRequest,
@@ -40,7 +58,7 @@ async def issue_certificate(
     settings: Settings = Depends(get_settings),
     user: User = Depends(require_permission(Permission.CREATE)),
 ) -> MessageResponse:
-    ok, output = CertbotOps(settings).issue_certificate(payload.domain, payload.email)
+    ok, output = CertbotOps(settings, db).issue_certificate(payload.domain, payload.email)
     log_audit(
         db,
         username=user.username,
@@ -62,7 +80,7 @@ async def renew_certificate(
     settings: Settings = Depends(get_settings),
     user: User = Depends(require_permission(Permission.EDIT)),
 ) -> MessageResponse:
-    ok, output = CertbotOps(settings).renew_certificate(cert_name)
+    ok, output = CertbotOps(settings, db).renew_certificate(cert_name)
     log_audit(
         db,
         username=user.username,
@@ -72,6 +90,7 @@ async def renew_certificate(
     )
     if not ok:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
+    NotificationService(settings, db).dispatch_ssl_renewed(cert_name)
     return MessageResponse(message="Certificate renewed", detail=output)
 
 
@@ -82,7 +101,7 @@ async def dry_run_renew(
     settings: Settings = Depends(get_settings),
     user: User = Depends(require_permission(Permission.READ)),
 ) -> MessageResponse:
-    ok, output = CertbotOps(settings).dry_run_renew()
+    ok, output = CertbotOps(settings, db).dry_run_renew()
     log_audit(
         db,
         username=user.username,

@@ -55,9 +55,14 @@ export function ProxiesPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold">Proxy Apps</h2>
         {canCreate ? (
-          <Link to="/proxies/new" className="rounded-lg bg-accent px-4 py-2 text-sm text-white">
-            Create app
-          </Link>
+          <div className="flex gap-2">
+            <Link to="/templates" className="rounded-lg bg-white/10 px-4 py-2 text-sm">
+              New from Template
+            </Link>
+            <Link to="/proxies/new" className="rounded-lg bg-accent px-4 py-2 text-sm text-white">
+              Create app
+            </Link>
+          </div>
         ) : null}
       </div>
 
