@@ -8,8 +8,11 @@ from app.db import get_db
 from app.models.user import User
 from app.schemas import LoginRequest, LoginResponse, MessageResponse
 from app.security.auth import create_session, delete_session, get_current_user, verify_password
+from app.security.https import cookie_secure
 from app.security.ip_allowlist import _client_ip, ip_allowlist_middleware
 from app.security.rate_limit import RateLimiter
+from app.services.audit_service import log_audit
+from app.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -39,6 +42,14 @@ async def login(
 
     user = db.query(User).filter(User.username == payload.username, User.is_active.is_(True)).first()
     if not user or not verify_password(payload.password, user.password_hash):
+        log_audit(
+            db,
+            username=payload.username,
+            action="login_failed",
+            resource="auth",
+            client_ip=client_ip,
+        )
+        NotificationService(settings, db).dispatch_login_security(payload.username, client_ip, success=False)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     session = create_session(db, user, client_ip, settings)
@@ -48,7 +59,7 @@ async def login(
         key=settings.session_cookie_name,
         value=session.session_id,
         httponly=True,
-        secure=not settings.debug,
+        secure=cookie_secure(request, settings),
         samesite="lax",
         max_age=settings.session_max_age_seconds,
     )
@@ -56,7 +67,7 @@ async def login(
         key=settings.csrf_cookie_name,
         value=session.csrf_token,
         httponly=False,
-        secure=not settings.debug,
+        secure=cookie_secure(request, settings),
         samesite="lax",
         max_age=settings.session_max_age_seconds,
     )

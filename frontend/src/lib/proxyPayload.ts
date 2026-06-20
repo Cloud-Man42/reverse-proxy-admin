@@ -7,9 +7,10 @@ export function toPayload(form: ProxyFormData) {
     routes: form.routes.map((route) => ({
       path_prefix: route.path_prefix || "/",
       target_protocol: route.target_protocol,
-      target_host: route.target_host,
-      target_port: Number(route.target_port),
+      target_host: route.use_pool ? "127.0.0.1" : route.target_host,
+      target_port: route.use_pool ? 80 : Number(route.target_port),
       websocket_enabled: route.websocket_enabled,
+      backend_pool_id: route.use_pool ? route.backend_pool_id : null,
     })),
     custom_headers: form.custom_headers,
     max_body_size: form.max_body_size || null,

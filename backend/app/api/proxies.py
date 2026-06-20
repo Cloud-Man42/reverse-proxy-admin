@@ -8,6 +8,7 @@ from app.db import get_db
 from app.models.user import User
 from app.schemas import (
     MessageResponse,
+    NotificationEventType,
     NginxTestResult,
     ProxyAppCreate,
     ProxyAppResponse,
@@ -15,6 +16,7 @@ from app.schemas import (
     TrafficDebugResponse,
     TrafficFlowTestResult,
 )
+from app.services.notification_service import NotificationService
 from app.security.ip_allowlist import _client_ip
 from app.security.permissions import Permission, require_permission
 from app.services.audit_service import log_audit
@@ -26,8 +28,11 @@ from app.services.traffic_debug_service import TrafficDebugService
 router = APIRouter(prefix="/proxies", tags=["proxies"])
 
 
-def get_service(settings: Settings = Depends(get_settings)) -> ProxyService:
-    return ProxyService(settings)
+def get_service(
+    settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
+) -> ProxyService:
+    return ProxyService(settings, db)
 
 
 @router.get("", response_model=List[ProxyAppResponse])
@@ -59,6 +64,8 @@ async def create_proxy(
     user: User = Depends(require_permission(Permission.CREATE)),
 ) -> ProxyAppResponse:
     ok, output, proxy = service.create_proxy(payload)
+    if not ok or not proxy:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
     log_audit(
         db,
         username=user.username,
@@ -67,8 +74,7 @@ async def create_proxy(
         client_ip=_client_ip(request),
         new_value=payload.model_dump(),
     )
-    if not ok or not proxy:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
+    NotificationService(get_settings(), db).dispatch_proxy_event(NotificationEventType.PROXY_CREATED, payload.name)
     return proxy
 
 
@@ -83,6 +89,8 @@ async def update_proxy(
 ) -> ProxyAppResponse:
     old = service.get_proxy(proxy_id)
     ok, output, proxy = service.update_proxy(proxy_id, payload)
+    if not ok or not proxy:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
     log_audit(
         db,
         username=user.username,
@@ -92,8 +100,7 @@ async def update_proxy(
         old_value=old.model_dump() if old else None,
         new_value=payload.model_dump(),
     )
-    if not ok or not proxy:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
+    NotificationService(get_settings(), db).dispatch_proxy_event(NotificationEventType.PROXY_MODIFIED, payload.name)
     return proxy
 
 
@@ -107,6 +114,8 @@ async def delete_proxy(
 ) -> MessageResponse:
     old = service.get_proxy(proxy_id)
     ok, output = service.delete_proxy(proxy_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
     log_audit(
         db,
         username=user.username,
@@ -115,8 +124,7 @@ async def delete_proxy(
         client_ip=_client_ip(request),
         old_value=old.model_dump() if old else None,
     )
-    if not ok:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=output)
+    NotificationService(get_settings(), db).dispatch_proxy_event(NotificationEventType.PROXY_DELETED, proxy_id)
     return MessageResponse(message="Proxy deleted", detail=output)
 
 

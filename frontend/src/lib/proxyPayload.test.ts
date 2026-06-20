@@ -12,6 +12,8 @@ const baseForm: ProxyFormData = {
       target_host: "10.0.0.10",
       target_port: 8080,
       websocket_enabled: true,
+      use_pool: false,
+      backend_pool_id: null,
     },
   ],
   custom_headers: [],
@@ -35,6 +37,7 @@ describe("toPayload", () => {
         target_host: "10.0.0.10",
         target_port: 8080,
         websocket_enabled: true,
+        backend_pool_id: null,
       },
     ]);
   });

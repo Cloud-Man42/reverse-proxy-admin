@@ -1,14 +1,17 @@
 from pathlib import Path
 from typing import Optional
 
+from sqlalchemy.orm import Session, joinedload
+
 from app.config import Settings
+from app.models.backend_pool import BackendPool
 from app.schemas import ProxyAppBase, ProxyAppCreate, ProxyAppResponse, ProxyAppUpdate, TargetProtocol
+from app.services.backend_pool_service import BackendPoolService
 from app.services.cert_paths import certificate_exists, certificate_paths
 from app.services.file_lock import file_lock
 from app.services.nginx_ops import NginxOps
 from app.services.nginx_parser import ParsedProxyConfig, list_proxy_configs, parse_config_file
 from app.services.nginx_writer import NginxWriter
-
 
 def parsed_to_response(parsed: ParsedProxyConfig) -> ProxyAppResponse:
     primary = parsed.routes[0]
@@ -36,11 +39,36 @@ def parsed_to_response(parsed: ParsedProxyConfig) -> ProxyAppResponse:
 
 
 class ProxyService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, db: Optional[Session] = None) -> None:
         self.settings = settings
+        self.db = db
         self.writer = NginxWriter(settings)
         self.ops = NginxOps(settings)
 
+    def _resolve_route_pools(self, app: ProxyAppBase, proxy_slug: str) -> dict[int, BackendPool]:
+        if not self.db:
+            return {}
+        pool_service = BackendPoolService(self.settings, self.db)
+        route_pools: dict[int, BackendPool] = {}
+        for idx, route in enumerate(app.routes):
+            pool = None
+            if route.backend_pool_id:
+                pool = (
+                    self.db.query(BackendPool)
+                    .options(joinedload(BackendPool.servers))
+                    .filter(BackendPool.id == route.backend_pool_id)
+                    .first()
+                )
+            if pool is None:
+                pool = pool_service.get_pool_for_route(proxy_slug, route.path_prefix, None)
+            if pool:
+                route_pools[idx] = pool
+        return route_pools
+
+    def _render_config(self, app: ProxyAppBase, proxy_slug: Optional[str] = None) -> str:
+        slug = proxy_slug or app.name
+        route_pools = self._resolve_route_pools(app, slug)
+        return self.writer.render_config(app, route_pools, slug)
     def _validate_force_https(self, app: ProxyAppBase) -> None:
         if not app.force_https:
             return
@@ -75,7 +103,7 @@ class ProxyService:
 
         def write_fn() -> None:
             self.writer.write_htpasswd(payload)
-            content = self.writer.render_config(payload)
+            content = self._render_config(payload, payload.name)
             self.writer.atomic_write(path, content)
             if payload.enabled:
                 self.ops.enable_site(path.name)
@@ -113,8 +141,8 @@ class ProxyService:
         if renaming and new_htpasswd.exists() and new_htpasswd != old_htpasswd:
             new_htpasswd.unlink(missing_ok=True)
 
-    def _write_proxy_state(self, path: Path, payload: ProxyAppBase) -> None:
-        content = self.writer.render_config(payload)
+    def _write_proxy_state(self, path: Path, payload: ProxyAppBase, proxy_slug: Optional[str] = None) -> None:
+        content = self._render_config(payload, proxy_slug or path.stem)
         self.writer.atomic_write(path, content)
         if payload.enabled:
             self.ops.enable_site(path.name)
@@ -140,8 +168,7 @@ class ProxyService:
         if not renaming:
             def write_fn() -> None:
                 self._sync_htpasswd(proxy_id, payload, renaming=False)
-                self._write_proxy_state(old_path, payload)
-
+                self._write_proxy_state(old_path, payload, proxy_id)
             ok, output = self.writer.apply_change(old_path, write_fn, self.ops.test_config)
             if not ok:
                 return False, output, None
@@ -166,7 +193,7 @@ class ProxyService:
 
         def write_fn() -> None:
             self._sync_htpasswd(proxy_id, payload, renaming=True)
-            self._write_proxy_state(new_path, payload)
+            self._write_proxy_state(new_path, payload, payload.name)
             self.ops.disable_site(old_path.name)
             old_path.unlink(missing_ok=True)
 

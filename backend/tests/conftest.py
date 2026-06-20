@@ -35,6 +35,8 @@ os.environ["NGINX_ERROR_LOG"] = str(_test_root / "logs" / "error.log")
 os.environ["NGINX_ACCESS_LOG"] = str(_test_root / "logs" / "access.log")
 os.environ["LETSENCRYPT_LIVE"] = str(_test_root / "letsencrypt" / "live")
 os.environ["CERTBOT_CONFIG_DIR"] = str(_test_root / "letsencrypt")
+os.environ["ALEMBIC_UPGRADE"] = "false"
+os.environ["SCHEDULER_ENABLED"] = "false"
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

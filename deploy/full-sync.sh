@@ -99,6 +99,9 @@ systemctl reload nginx
 echo "==> Configuring automatic certificate renewal"
 bash "${APP_ROOT}/deploy/setup-certbot-renewal.sh" "${APP_ROOT}"
 
+echo "==> Configuring HTTPS admin UI (nginx :8443)"
+bash "${APP_ROOT}/deploy/setup-admin-ui-https.sh" "${APP_ROOT}"
+
 echo "==> Restarting services"
 systemctl restart nginx-admin
 sleep 2

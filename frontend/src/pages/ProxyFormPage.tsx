@@ -24,6 +24,8 @@ const emptyRoute = (): ProxyRouteFormData => ({
   target_host: "",
   target_port: 8080,
   websocket_enabled: false,
+  use_pool: false,
+  backend_pool_id: null,
 });
 
 const emptyForm: ProxyFormData = {
@@ -68,6 +70,8 @@ export function ProxyFormPage() {
               target_host: route.target_host,
               target_port: route.target_port,
               websocket_enabled: route.websocket_enabled,
+              use_pool: Boolean(route.backend_pool_id),
+              backend_pool_id: route.backend_pool_id ?? null,
             }))
           : [emptyRoute()],
         custom_headers: data.custom_headers,

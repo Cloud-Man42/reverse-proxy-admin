@@ -5,13 +5,15 @@ from pathlib import Path
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import auth, certificates, logs, proxies, system, users
+from app.api import auth, backend_pools, certificates, health_checks, logs, notifications, proxies, smtp, system, system_alerts, users
 from app.config import get_settings
 from app.db import SessionLocal, init_db
 from app.security.auth import bootstrap_admin
+from app.services.scheduler import start_scheduler, stop_scheduler
+from app.security.https import request_is_https
 from app.security.ip_allowlist import ip_allowlist_middleware
 
 
@@ -36,7 +38,10 @@ async def lifespan(app: FastAPI):
         bootstrap_admin(db, settings)
     finally:
         db.close()
+    if settings.scheduler_enabled:
+        start_scheduler(settings)
     yield
+    stop_scheduler()
 
 
 settings = get_settings()
@@ -44,11 +49,42 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[f"http://{settings.host}:{settings.port}", "http://127.0.0.1:5173"],
+    allow_origins=[
+        f"http://{settings.host}:{settings.port}",
+        f"https://127.0.0.1:{settings.admin_ui_port}",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def require_https_admin_ui(request: Request, call_next):
+    current = get_settings()
+    if not current.admin_ui_require_https or current.debug:
+        return await call_next(request)
+    if request.url.path == "/api/health":
+        return await call_next(request)
+    if request_is_https(request, current):
+        return await call_next(request)
+
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or "localhost"
+    host = host.split(",")[0].strip().split(":")[0]
+    target = f"https://{host}:{current.admin_ui_port}{request.url.path}"
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": f"HTTPS required. Use {target.replace(request.url.path, '')}",
+            },
+        )
+
+    return RedirectResponse(url=target, status_code=308)
 
 
 @app.middleware("http")
@@ -64,6 +100,13 @@ async def enforce_ip_allowlist(request: Request, call_next):
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(proxies.router, prefix="/api")
+app.include_router(backend_pools.router, prefix="/api")
+app.include_router(backend_pools.router_servers, prefix="/api")
+app.include_router(backend_pools.load_balancers_router, prefix="/api")
+app.include_router(health_checks.router, prefix="/api")
+app.include_router(smtp.router, prefix="/api")
+app.include_router(notifications.router, prefix="/api")
+app.include_router(system_alerts.router, prefix="/api")
 app.include_router(certificates.router, prefix="/api")
 app.include_router(logs.router, prefix="/api")
 app.include_router(system.router, prefix="/api")

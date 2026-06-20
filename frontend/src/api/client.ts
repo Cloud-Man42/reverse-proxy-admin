@@ -115,4 +115,57 @@ export const api = {
   nginxStatus: () => request<import("../types").NginxStatus>("/api/system/nginx/status"),
   nginxTest: () => request<import("../types").NginxTestResult>("/api/system/nginx/test", { method: "POST" }),
   nginxReload: () => request<import("../types").MessageResponse>("/api/system/nginx/reload", { method: "POST" }),
+  listBackendPools: (proxyId?: string) =>
+    request<import("../types").BackendPool[]>(
+      proxyId ? `/api/backend-pools?proxy_id=${encodeURIComponent(proxyId)}` : "/api/backend-pools"
+    ),
+  getBackendPool: (id: number) => request<import("../types").BackendPool>(`/api/backend-pools/${id}`),
+  createBackendPool: (payload: unknown) =>
+    request<import("../types").BackendPool>("/api/backend-pools", { method: "POST", body: JSON.stringify(payload) }),
+  updateBackendPool: (id: number, payload: unknown) =>
+    request<import("../types").BackendPool>(`/api/backend-pools/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteBackendPool: (id: number) =>
+    request<import("../types").MessageResponse>(`/api/backend-pools/${id}`, { method: "DELETE" }),
+  listLoadBalancers: () => request<import("../types").LoadBalancerSummary[]>("/api/load-balancers"),
+  listBackendServers: (poolId?: number) =>
+    request<import("../types").BackendServer[]>(
+      poolId ? `/api/backend-servers?pool_id=${poolId}` : "/api/backend-servers"
+    ),
+  createBackendServer: (payload: unknown) =>
+    request<import("../types").BackendServer>("/api/backend-servers", { method: "POST", body: JSON.stringify(payload) }),
+  updateBackendServer: (id: number, payload: unknown) =>
+    request<import("../types").BackendServer>(`/api/backend-servers/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteBackendServer: (id: number) =>
+    request<import("../types").MessageResponse>(`/api/backend-servers/${id}`, { method: "DELETE" }),
+  healthDashboard: () => request<import("../types").HealthCheckDashboard>("/api/health-checks/dashboard"),
+  healthHistory: (serverId: number, range = "24h") =>
+    request<import("../types").HealthHistoryPoint[]>(`/api/health-checks/servers/${serverId}/history?range=${range}`),
+  getSmtpSettings: () => request<import("../types").SmtpSettings>("/api/smtp"),
+  updateSmtpSettings: (payload: unknown) =>
+    request<import("../types").SmtpSettings>("/api/smtp", { method: "PUT", body: JSON.stringify(payload) }),
+  testSmtpConnection: () =>
+    request<import("../types").SmtpTestResult>("/api/smtp/test-connection", { method: "POST" }),
+  sendSmtpTestEmail: (email: string) =>
+    request<import("../types").SmtpTestResult>("/api/smtp/send-test", { method: "POST", body: JSON.stringify({ email }) }),
+  listNotificationRecipients: () =>
+    request<import("../types").NotificationRecipient[]>("/api/notifications/recipients"),
+  createNotificationRecipient: (payload: unknown) =>
+    request<import("../types").NotificationRecipient>("/api/notifications/recipients", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateNotificationRecipient: (id: number, payload: unknown) =>
+    request<import("../types").NotificationRecipient>(`/api/notifications/recipients/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  deleteNotificationRecipient: (id: number) =>
+    request<import("../types").MessageResponse>(`/api/notifications/recipients/${id}`, { method: "DELETE" }),
+  getSystemAlertThresholds: () => request<import("../types").SystemAlertThresholds>("/api/system-alerts/thresholds"),
+  updateSystemAlertThresholds: (payload: unknown) =>
+    request<import("../types").SystemAlertThresholds>("/api/system-alerts/thresholds", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  listAuditLogs: (page = 1) => request<import("../types").AuditLogList>(`/api/audit?page=${page}`),
 };

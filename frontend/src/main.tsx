@@ -7,6 +7,16 @@ import { AuthProvider } from "./hooks/useAuth";
 import { ToastProvider } from "./hooks/useToast";
 import "./index.css";
 
+if (
+  window.location.protocol === "http:" &&
+  window.location.hostname !== "localhost" &&
+  window.location.hostname !== "127.0.0.1" &&
+  window.location.port !== "5173"
+) {
+  const { hostname, pathname, search, port } = window.location;
+  const httpsPort = port && port !== "80" && port !== "8080" ? port : "8443";
+  window.location.replace(`https://${hostname}:${httpsPort}${pathname}${search}`);
+}
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

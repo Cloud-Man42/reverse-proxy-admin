@@ -9,11 +9,17 @@ Production-ready web administration tool for managing Nginx reverse proxy config
 ## Features
 
 - Manage reverse proxy apps (create, edit, delete, enable/disable)
+- **Enterprise load balancing** with backend pools, weighted servers, and active/passive failover
+- **Backend health monitoring** with TCP/HTTP/HTTPS checks, uptime history, and dashboard widgets
+- **SMTP notifications** with encrypted credentials and configurable alert recipients
+- **Scheduled alerts** for SSL expiry, system resources (CPU/RAM/disk), and NGINX failures
 - Safe config workflow: backup before write, `nginx -t` before reload, automatic rollback on failure
 - Certificate management via Certbot
 - Error/access log viewer with domain filter
 - Session authentication with Argon2, CSRF protection, login rate limiting, IP allowlist
 - Audit log for all mutating actions
+
+See [Enterprise Features](docs/ENTERPRISE_FEATURES.md) for load balancing, health checks, SMTP, and alerting details.
 
 ## Architecture
 

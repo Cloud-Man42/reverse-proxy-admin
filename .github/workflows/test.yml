@@ -35,6 +35,8 @@ jobs:
           NGINX_ACCESS_LOG: /tmp/reverse-proxy-admin-ci/logs/access.log
           LETSENCRYPT_LIVE: /tmp/reverse-proxy-admin-ci/letsencrypt/live
           CERTBOT_CONFIG_DIR: /tmp/reverse-proxy-admin-ci/letsencrypt
+          SCHEDULER_ENABLED: "false"
+          ALEMBIC_UPGRADE: "false"
         run: pytest
 
   frontend:

@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     server_hostname: str = "reverse-proxy"
     network_exposed_ports: List[int] = Field(default_factory=lambda: [80, 443, 8443])
     admin_ui_port: int = 8443
+    admin_ui_require_https: bool = True
+
+    encryption_key: str = ""
+    alembic_upgrade: bool = True
+    scheduler_enabled: bool = True
+    health_check_interval_seconds: int = 60
+    system_monitor_interval_seconds: int = 300
+    ssl_alert_interval_seconds: int = 86400
+    health_warning_ms: int = 2000
 
     @field_validator("data_dir", "backup_dir", mode="before")
     @classmethod

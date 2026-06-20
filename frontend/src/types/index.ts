@@ -4,6 +4,128 @@ export interface ProxyRoute {
   target_host: string;
   target_port: number;
   websocket_enabled: boolean;
+  backend_pool_id?: number | null;
+}
+
+export type LoadBalancingMethod = "round_robin" | "least_conn" | "ip_hash" | "random" | "weighted";
+export type BackendRole = "primary" | "backup";
+export type HealthStatus = "healthy" | "warning" | "offline" | "unknown";
+export type HealthCheckType = "tcp" | "http" | "https" | "custom";
+
+export interface BackendServer {
+  id: number;
+  pool_id: number;
+  name: string;
+  host: string;
+  port: number;
+  protocol: "http" | "https";
+  weight: number;
+  role: BackendRole;
+  enabled: boolean;
+  health_check_type: HealthCheckType;
+  health_check_path: string;
+  notes?: string | null;
+  health_status: HealthStatus;
+  last_check_at?: string | null;
+  response_ms?: number | null;
+  uptime_percent_24h?: number | null;
+}
+
+export interface BackendPool {
+  id: number;
+  name: string;
+  proxy_id?: string | null;
+  route_path: string;
+  load_balancing_method: LoadBalancingMethod;
+  enabled: boolean;
+  notes?: string | null;
+  servers: BackendServer[];
+  primary_count: number;
+  backup_count: number;
+  failover_active: boolean;
+}
+
+export interface LoadBalancerSummary {
+  pool_id: number;
+  pool_name: string;
+  proxy_id?: string | null;
+  load_balancing_method: LoadBalancingMethod;
+  server_count: number;
+  primary_count: number;
+  backup_count: number;
+  healthy_count: number;
+  offline_count: number;
+}
+
+export interface HealthCheckDashboard {
+  healthy: number;
+  warning: number;
+  offline: number;
+  unknown: number;
+  servers: BackendServer[];
+}
+
+export interface HealthHistoryPoint {
+  timestamp: string;
+  uptime_percent: number;
+  avg_response_ms?: number | null;
+}
+
+export type SmtpSecurityMode = "none" | "starttls" | "ssl";
+
+export interface SmtpSettings {
+  host: string;
+  port: number;
+  username: string;
+  password_set: boolean;
+  security_mode: SmtpSecurityMode;
+  starttls_enabled: boolean;
+  ssl_enabled: boolean;
+  sender_name: string;
+  sender_email: string;
+  last_test_status: string;
+}
+
+export interface SmtpTestResult {
+  status: string;
+  message: string;
+}
+
+export interface NotificationRecipient {
+  id: number;
+  name: string;
+  email: string;
+  enabled: boolean;
+  email_enabled: boolean;
+  critical_only: boolean;
+  all_notifications: boolean;
+  enabled_types: string[];
+  created_at: string;
+}
+
+export interface SystemAlertThresholds {
+  cpu_percent: number;
+  ram_percent: number;
+  disk_percent: number;
+  enabled: boolean;
+}
+
+export interface AuditLogList {
+  items: AuditLogEntry[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface AuditLogEntry {
+  id: number;
+  username: string;
+  action: string;
+  resource: string;
+  old_value?: string | null;
+  new_value?: string | null;
+  client_ip: string;
+  created_at: string;
 }
 
 export interface ProxyApp {
@@ -47,6 +169,12 @@ export interface DashboardStats {
   nginx_active: boolean;
   expiring_certificates: number;
   recent_errors: string[];
+  total_backend_servers: number;
+  healthy_backends: number;
+  warning_backends: number;
+  offline_backends: number;
+  total_certificates: number;
+  smtp_status: string;
 }
 
 export interface NetworkMapNode {
@@ -173,6 +301,31 @@ export interface ProxyRouteFormData {
   target_host: string;
   target_port: number;
   websocket_enabled: boolean;
+  backend_pool_id?: number | null;
+  use_pool: boolean;
+}
+
+export interface BackendServerFormData {
+  name: string;
+  host: string;
+  port: number;
+  protocol: "http" | "https";
+  weight: number;
+  role: BackendRole;
+  enabled: boolean;
+  health_check_type: HealthCheckType;
+  health_check_path: string;
+  notes: string;
+}
+
+export interface BackendPoolFormData {
+  name: string;
+  proxy_id: string;
+  route_path: string;
+  load_balancing_method: LoadBalancingMethod;
+  enabled: boolean;
+  notes: string;
+  servers: BackendServerFormData[];
 }
 
 export interface ProxyFormData {

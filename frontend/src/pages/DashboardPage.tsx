@@ -3,6 +3,7 @@ import { ApiError, api } from "../api/client";
 import { Card } from "../components/Card";
 import { NetworkMap } from "../components/NetworkMap";
 import { StatusBadge } from "../components/StatusBadge";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 
 export function DashboardPage() {
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -10,6 +11,7 @@ export function DashboardPage() {
     queryFn: api.dashboard,
     retry: 1,
   });
+  useAutoRefresh(true, 30000, refetch);
 
   if (isLoading) {
     return <p>Loading dashboard...</p>;
@@ -30,19 +32,23 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card title="Active proxies">
-          <p className="text-3xl font-bold">{data.active_proxies}</p>
-        </Card>
-        <Card title="Inactive proxies">
-          <p className="text-3xl font-bold">{data.inactive_proxies}</p>
-        </Card>
-        <Card title="Nginx status">
-          <StatusBadge status={data.nginx_active ? "running" : "stopped"} />
-        </Card>
-        <Card title="Expiring certificates">
-          <p className="text-3xl font-bold">{data.expiring_certificates}</p>
-        </Card>
+        <Card title="Proxy Hosts"><p className="text-3xl font-bold">{data.active_proxies + data.inactive_proxies}</p></Card>
+        <Card title="Backend Servers"><p className="text-3xl font-bold">{data.total_backend_servers}</p></Card>
+        <Card title="Healthy Backends"><p className="text-3xl font-bold text-green-400">{data.healthy_backends}</p></Card>
+        <Card title="Offline Backends"><p className="text-3xl font-bold text-red-400">{data.offline_backends}</p></Card>
+        <Card title="Certificates"><p className="text-3xl font-bold">{data.total_certificates}</p></Card>
+        <Card title="Expiring Certificates"><p className="text-3xl font-bold text-amber-400">{data.expiring_certificates}</p></Card>
+        <Card title="NGINX Status"><StatusBadge status={data.nginx_active ? "running" : "stopped"} /></Card>
+        <Card title="SMTP Status"><StatusBadge status={data.smtp_status === "connected" ? "running" : "unknown"} label={data.smtp_status} /></Card>
       </div>
+
+      <Card title="Backend Status">
+        <div className="grid gap-4 md:grid-cols-3">
+          <div><p className="text-sm text-white/60">Healthy</p><p className="text-2xl font-bold text-green-400">{data.healthy_backends}</p></div>
+          <div><p className="text-sm text-white/60">Warning</p><p className="text-2xl font-bold text-amber-400">{data.warning_backends}</p></div>
+          <div><p className="text-sm text-white/60">Offline</p><p className="text-2xl font-bold text-red-400">{data.offline_backends}</p></div>
+        </div>
+      </Card>
 
       <Card title="Network map">
         <p className="mb-3 text-sm text-white/60">

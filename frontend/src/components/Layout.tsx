@@ -5,12 +5,15 @@ import { useTheme } from "../hooks/useAutoRefresh";
 const links = [
   { to: "/", label: "Dashboard" },
   { to: "/proxies", label: "Proxy Apps" },
+  { to: "/backend-pools", label: "Backend Pools" },
+  { to: "/health", label: "Health" },
   { to: "/certificates", label: "Certificates" },
   { to: "/logs", label: "Logs" },
   { to: "/system", label: "System" },
+  { to: "/settings", label: "Settings", adminOnly: true },
+  { to: "/about", label: "About" },
   { to: "/users", label: "Users", adminOnly: true },
 ];
-
 export function Layout() {
   const { username, logout, isAdmin } = useAuth();
   const { dark, toggle } = useTheme();

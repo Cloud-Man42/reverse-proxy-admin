@@ -74,18 +74,8 @@ systemctl enable nginx-admin
 
 systemctl restart nginx-admin
 
-echo "==> Installing admin UI nginx vhost (if missing)"
-if [[ ! -f /etc/nginx/sites-available/admin-ui.conf ]]; then
-  if [[ ! -f /etc/ssl/certs/nginx-admin.crt ]]; then
-    openssl req -x509 -nodes -days 825 -newkey rsa:2048 \
-      -keyout /etc/ssl/private/nginx-admin.key \
-      -out /etc/ssl/certs/nginx-admin.crt \
-      -subj "/CN=nginx-admin.local"
-    chmod 600 /etc/ssl/private/nginx-admin.key
-  fi
-  cp "${APP_ROOT}/deploy/nginx/admin-ui.conf.example" /etc/nginx/sites-available/admin-ui.conf
-  ln -sf /etc/nginx/sites-available/admin-ui.conf /etc/nginx/sites-enabled/admin-ui.conf
-fi
+echo "==> Installing admin UI nginx vhost (HTTPS only)"
+bash "${APP_ROOT}/deploy/setup-admin-ui-https.sh" "${APP_ROOT}"
 
 mkdir -p /etc/nginx/conf.d
 cp "${APP_ROOT}/deploy/nginx/proxy-debug-log.conf" /etc/nginx/conf.d/proxy-debug-log.conf

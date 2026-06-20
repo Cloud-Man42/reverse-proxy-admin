@@ -7,8 +7,10 @@ from typing import Callable, Optional
 from jinja2 import Environment, StrictUndefined
 
 from app.config import Settings
+from app.models.backend_pool import BackendPool
 from app.schemas import ProxyAppBase, ProxyRoute
 from app.services.file_lock import file_lock
+from app.services.load_balancer_service import LoadBalancerService
 from app.services.path_guard import ensure_path_allowed, safe_join
 
 
@@ -18,7 +20,11 @@ PROXY_DEBUG_LOG_FORMAT = (
 )
 
 
-CONFIG_TEMPLATE = """{% if app.force_https -%}
+CONFIG_TEMPLATE = """{% if upstream_blocks -%}
+{{ upstream_blocks }}
+
+{% endif -%}
+{% if app.force_https -%}
 server {
     listen 80;
     server_name {{ app.domains | join(' ') }};
@@ -111,24 +117,45 @@ class NginxWriter:
 
     @staticmethod
     def route_upstream(route: ProxyRoute) -> str:
+        if route.target_host is None or route.target_port is None:
+            return "pool"
         return f"{route.target_protocol.value}://{route.target_host}:{route.target_port}"
 
     @staticmethod
     def route_location_and_pass(route: ProxyRoute) -> tuple[str, str]:
+        if route.target_host is None or route.target_port is None:
+            return route.path_prefix if route.path_prefix != "/" else "/", "http://127.0.0.1"
         upstream = NginxWriter.route_upstream(route)
         if route.path_prefix == "/":
             return "/", upstream
         return f"{route.path_prefix}/", f"{upstream}/"
 
-    def render_routes(self, app: ProxyAppBase) -> list[dict]:
+    def render_routes(
+        self,
+        app: ProxyAppBase,
+        route_pools: Optional[dict[int, BackendPool]] = None,
+        proxy_slug: Optional[str] = None,
+    ) -> list[dict]:
         rendered: list[dict] = []
+        route_pools = route_pools or {}
+        slug = proxy_slug or app.name
+        lb = LoadBalancerService(self.settings)
         sorted_routes = sorted(
-            app.routes,
-            key=lambda route: len(route.path_prefix),
+            enumerate(app.routes),
+            key=lambda item: len(item[1].path_prefix),
             reverse=True,
         )
-        for route in sorted_routes:
-            location, proxy_pass = self.route_location_and_pass(route)
+        for orig_idx, route in sorted_routes:
+            pool = route_pools.get(orig_idx)
+            if pool and pool.enabled:
+                upstream_name = lb.upstream_name(slug, orig_idx)
+                protocol = lb.pool_protocol(pool)
+                if route.path_prefix == "/":
+                    location, proxy_pass = "/", f"{protocol}://{upstream_name}"
+                else:
+                    location, proxy_pass = f"{route.path_prefix}/", f"{protocol}://{upstream_name}/"
+            else:
+                location, proxy_pass = self.route_location_and_pass(route)
             rendered.append(
                 {
                     "location": location,
@@ -138,12 +165,35 @@ class NginxWriter:
             )
         return rendered
 
-    def render_config(self, app: ProxyAppBase) -> str:
+    def render_upstream_blocks(
+        self,
+        app: ProxyAppBase,
+        route_pools: dict[int, BackendPool],
+        proxy_slug: Optional[str] = None,
+    ) -> str:
+        slug = proxy_slug or app.name
+        lb = LoadBalancerService(self.settings)
+        blocks: list[str] = []
+        for idx, pool in route_pools.items():
+            if pool and pool.enabled:
+                name = lb.upstream_name(slug, idx)
+                lb.validate_pool(pool)
+                blocks.append(lb.render_upstream_block(pool, name))
+        return "\n\n".join(blocks)
+
+    def render_config(
+        self,
+        app: ProxyAppBase,
+        route_pools: Optional[dict[int, BackendPool]] = None,
+        proxy_slug: Optional[str] = None,
+    ) -> str:
+        route_pools = route_pools or {}
         htpasswd_path = self.settings.htpasswd_dir / f"{app.name}.htpasswd"
         template = self.env.from_string(CONFIG_TEMPLATE)
         return template.render(
             app=app,
-            routes=self.render_routes(app),
+            routes=self.render_routes(app, route_pools, proxy_slug),
+            upstream_blocks=self.render_upstream_blocks(app, route_pools, proxy_slug),
             htpasswd_path=str(htpasswd_path),
         )
 
