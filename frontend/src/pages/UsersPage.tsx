@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../api/client";
 import { Card } from "../components/Card";
+import { Checkbox } from "../components/Checkbox";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../hooks/useAuth";
@@ -111,30 +112,37 @@ export function UsersPage() {
                 required={!editing}
               />
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
-              Active
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={form.is_admin} onChange={(e) => setForm({ ...form, is_admin: e.target.checked })} />
-              Admin (all permissions)
-            </label>
-            {!form.is_admin ? (
-              <>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={form.perm_read} onChange={(e) => setForm({ ...form, perm_read: e.target.checked })} />
-                  Read
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={form.perm_create} onChange={(e) => setForm({ ...form, perm_create: e.target.checked })} />
-                  Create
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={form.perm_edit} onChange={(e) => setForm({ ...form, perm_edit: e.target.checked })} />
-                  Edit
-                </label>
-              </>
-            ) : null}
+            <div className="ui-checkbox-group md:col-span-2">
+              <Checkbox
+                checked={form.is_active}
+                onChange={(checked) => setForm({ ...form, is_active: checked })}
+                label="Active"
+              />
+              <Checkbox
+                checked={form.is_admin}
+                onChange={(checked) => setForm({ ...form, is_admin: checked })}
+                label="Admin (all permissions)"
+              />
+              {!form.is_admin ? (
+                <>
+                  <Checkbox
+                    checked={form.perm_read}
+                    onChange={(checked) => setForm({ ...form, perm_read: checked })}
+                    label="Read"
+                  />
+                  <Checkbox
+                    checked={form.perm_create}
+                    onChange={(checked) => setForm({ ...form, perm_create: checked })}
+                    label="Create"
+                  />
+                  <Checkbox
+                    checked={form.perm_edit}
+                    onChange={(checked) => setForm({ ...form, perm_edit: checked })}
+                    label="Edit"
+                  />
+                </>
+              ) : null}
+            </div>
             <div className="flex gap-2 md:col-span-2">
               <button type="submit" className="rounded-lg bg-accent px-4 py-2 text-sm text-white" disabled={saveMutation.isPending}>
                 Save

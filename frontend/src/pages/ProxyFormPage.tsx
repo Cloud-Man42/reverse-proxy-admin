@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { Card } from "../components/Card";
+import { Checkbox } from "../components/Checkbox";
 import { StatusBadge } from "../components/StatusBadge";
 import { TrafficDebugPanel } from "../components/TrafficDebugPanel";
 import { ConfigHistoryPanel } from "./ConfigHistoryPage";
@@ -286,17 +287,15 @@ export function ProxyFormPage() {
                       required
                     />
                   </div>
-                  <label className="flex items-end gap-2 pb-2 text-xs md:col-span-2">
-                    <input
-                      type="checkbox"
-                      checked={route.use_pool}
-                      onChange={(e) => {
-                        updateRoute(index, "use_pool", e.target.checked);
-                        if (!e.target.checked) updateRoute(index, "backend_pool_id", null);
-                      }}
-                    />
-                    Use backend pool
-                  </label>
+                  <Checkbox
+                    labelClassName="md:col-span-2 self-end pb-2 text-xs"
+                    checked={route.use_pool}
+                    onChange={(checked) => {
+                      updateRoute(index, "use_pool", checked);
+                      if (!checked) updateRoute(index, "backend_pool_id", null);
+                    }}
+                    label="Use backend pool"
+                  />
                   {route.use_pool ? (
                     <div className="md:col-span-3">
                       <label className="mb-1 block text-xs">Backend pool</label>
@@ -347,14 +346,12 @@ export function ProxyFormPage() {
                   </div>
                     </>
                   )}
-                  <label className="flex items-end gap-2 pb-2 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={route.websocket_enabled}
-                      onChange={(e) => updateRoute(index, "websocket_enabled", e.target.checked)}
-                    />
-                    WebSocket
-                  </label>
+                  <Checkbox
+                    labelClassName="self-end pb-2 text-xs"
+                    checked={route.websocket_enabled}
+                    onChange={(checked) => updateRoute(index, "websocket_enabled", checked)}
+                    label="WebSocket"
+                  />
                   <div className="flex items-end justify-end pb-1">
                     <button
                       type="button"
@@ -423,24 +420,30 @@ export function ProxyFormPage() {
             />
           </div>
 
-          <label className="flex items-center gap-2 text-sm md:col-span-2">
-            <input type="checkbox" checked={form.force_https} onChange={(e) => update("force_https", e.target.checked)} />
-            Redirect HTTP to HTTPS
-          </label>
+          <Checkbox
+            labelClassName="md:col-span-2"
+            checked={form.force_https}
+            onChange={(checked) => update("force_https", checked)}
+            label="Redirect HTTP to HTTPS"
+          />
           {form.force_https ? (
             <p className="text-sm text-amber-200 md:col-span-2">
               Requires a valid SSL certificate for the domain. Issue a Let&apos;s Encrypt certificate or import your own on the Certificates page
               before saving with this option enabled.
             </p>
           ) : null}
-          <label className="flex items-center gap-2 text-sm md:col-span-2">
-            <input type="checkbox" checked={form.enabled} onChange={(e) => update("enabled", e.target.checked)} />
-            Enabled
-          </label>
-          <label className="flex items-center gap-2 text-sm md:col-span-2">
-            <input type="checkbox" checked={form.basic_auth_enabled} onChange={(e) => update("basic_auth_enabled", e.target.checked)} />
-            Basic auth
-          </label>
+          <Checkbox
+            labelClassName="md:col-span-2"
+            checked={form.enabled}
+            onChange={(checked) => update("enabled", checked)}
+            label="Enabled"
+          />
+          <Checkbox
+            labelClassName="md:col-span-2"
+            checked={form.basic_auth_enabled}
+            onChange={(checked) => update("basic_auth_enabled", checked)}
+            label="Basic auth"
+          />
           {form.basic_auth_enabled ? (
             <>
               <div>
@@ -463,16 +466,11 @@ export function ProxyFormPage() {
               <h3 className="text-sm font-medium">Rate limiting</h3>
               <p className="text-xs text-white/60">Apply nginx limit_req per client IP or URI.</p>
             </div>
-            <label className="mb-3 flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.rate_limit.enabled}
-                onChange={(e) =>
-                  update("rate_limit", { ...form.rate_limit, enabled: e.target.checked })
-                }
-              />
-              Enable rate limiting
-            </label>
+            <Checkbox
+              checked={form.rate_limit.enabled}
+              onChange={(checked) => update("rate_limit", { ...form.rate_limit, enabled: checked })}
+              label="Enable rate limiting"
+            />
             {form.rate_limit.enabled ? (
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
@@ -515,16 +513,12 @@ export function ProxyFormPage() {
                     <option value="uri">URI</option>
                   </select>
                 </div>
-                <label className="flex items-end gap-2 pb-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={form.rate_limit.nodelay}
-                    onChange={(e) =>
-                      update("rate_limit", { ...form.rate_limit, nodelay: e.target.checked })
-                    }
-                  />
-                  No delay (nodelay)
-                </label>
+                <Checkbox
+                  labelClassName="self-end pb-2 text-xs"
+                  checked={form.rate_limit.nodelay}
+                  onChange={(checked) => update("rate_limit", { ...form.rate_limit, nodelay: checked })}
+                  label="No delay (nodelay)"
+                />
               </div>
             ) : null}
           </div>

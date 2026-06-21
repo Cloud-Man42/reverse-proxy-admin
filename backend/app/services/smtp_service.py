@@ -61,6 +61,7 @@ class SmtpService:
             ssl_enabled=row.ssl_enabled,
             sender_name=row.sender_name,
             sender_email=row.sender_email,
+            default_recipient_email=row.default_recipient_email,
             tls_server_name=row.tls_server_name,
             verify_tls_certificate=row.verify_tls_certificate,
             last_test_status=row.last_test_status,
@@ -82,6 +83,7 @@ class SmtpService:
             row.tls_enabled = payload.starttls_enabled
         row.sender_name = payload.sender_name.strip()
         row.sender_email = payload.sender_email.strip()
+        row.default_recipient_email = payload.default_recipient_email.strip()
         row.tls_server_name = payload.tls_server_name.strip()
         row.verify_tls_certificate = payload.verify_tls_certificate
         self.db.commit()
@@ -137,12 +139,36 @@ class SmtpService:
             smtp.ehlo()
         return smtp
 
+    def default_recipient_email(self) -> str:
+        return self._get_or_create().default_recipient_email.strip()
+
+    @staticmethod
+    def merge_recipient_emails(*groups: list[str], default_email: str = "") -> list[str]:
+        merged: list[str] = []
+        seen: set[str] = set()
+        for email in [default_email, *(address for group in groups for address in group)]:
+            normalized = email.strip()
+            if not normalized:
+                continue
+            key = normalized.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(normalized)
+        return merged
+
     def test_connection(self) -> SmtpTestResponse:
         row = self._get_or_create()
         if not row.host:
             return SmtpTestResponse(status="connection_failed", message="SMTP host is not configured")
+        test_recipient = self.default_recipient_email() or row.sender_email or row.username
+        if not test_recipient:
+            return SmtpTestResponse(
+                status="connection_failed",
+                message="Configure a default notification recipient or sender email before testing SMTP",
+            )
         try:
-            self._send_via_smtp(row, row.sender_email or row.username, "Connection Test", "SMTP connection test")
+            self._send_via_smtp(row, test_recipient, "Connection Test", "SMTP connection test")
             row.last_test_status = "connected"
             self.db.commit()
             return SmtpTestResponse(status="connected", message="Successfully connected and authenticated")
@@ -163,16 +189,22 @@ class SmtpService:
             self.db.commit()
             return SmtpTestResponse(status="connection_failed", message=str(exc))
 
-    def send_test_email(self, recipient: str) -> SmtpTestResponse:
+    def send_test_email(self, recipient: str | None = None) -> SmtpTestResponse:
         row = self._get_or_create()
+        target = (recipient or "").strip() or self.default_recipient_email()
+        if not target:
+            return SmtpTestResponse(
+                status="connection_failed",
+                message="Configure a default notification recipient or enter a test email address",
+            )
         try:
             self._send_via_smtp(
                 row,
-                recipient,
+                target,
                 f"{APP_NAME} Test Email",
                 f"This is a test email from {APP_NAME}.",
             )
-            return SmtpTestResponse(status="connected", message=f"Test email sent to {recipient}")
+            return SmtpTestResponse(status="connected", message=f"Test email sent to {target}")
         except smtplib.SMTPAuthenticationError:
             return SmtpTestResponse(status="authentication_failed", message="Authentication failed")
         except ssl.SSLError as exc:

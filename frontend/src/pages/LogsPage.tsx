@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { Card } from "../components/Card";
+import { Checkbox } from "../components/Checkbox";
 import { TrafficDebugPanel } from "../components/TrafficDebugPanel";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 
@@ -33,10 +34,7 @@ export function LogsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-semibold">Logs</h2>
         {tab !== "debug" ? (
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-            Auto-refresh
-          </label>
+          <Checkbox checked={autoRefresh} onChange={setAutoRefresh} label="Auto-refresh" />
         ) : null}
       </div>
 

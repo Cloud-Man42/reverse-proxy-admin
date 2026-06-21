@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../api/client";
 import { Card } from "../components/Card";
+import { Checkbox } from "../components/Checkbox";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
@@ -91,20 +92,27 @@ function SmtpTab() {
   const [testEmail, setTestEmail] = useState("");
 
   const save = useMutation({
-    mutationFn: () =>
-      api.updateSmtpSettings({
+    mutationFn: () => {
+      if (!data) {
+        throw new Error("SMTP settings are still loading");
+      }
+      const password = form.password?.trim();
+      return api.updateSmtpSettings({
         host: current.host || "",
         port: current.port || 587,
         username: current.username || "",
-        password: form.password || undefined,
+        password: password ? password : undefined,
         security_mode: current.security_mode || "starttls",
         sender_name: current.sender_name || "",
         sender_email: current.sender_email || "",
+        default_recipient_email: current.default_recipient_email || "",
         tls_server_name: current.tls_server_name || "",
         verify_tls_certificate: current.verify_tls_certificate ?? true,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["smtp"] });
+      });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["smtp"] });
+      setForm({});
       showSuccess("SMTP settings saved");
     },
     onError: (e) => showError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : "Save failed"),
@@ -117,12 +125,18 @@ function SmtpTab() {
   });
 
   const sendTest = useMutation({
-    mutationFn: () => api.sendSmtpTestEmail(testEmail),
+    mutationFn: () => api.sendSmtpTestEmail(testEmail.trim() || undefined),
     onSuccess: (result) => showSuccess(result.message),
     onError: (e) => showError(e instanceof ApiError ? e.message : "Send failed"),
   });
 
   const current = { ...data, ...form } as SmtpSettings & { password?: string };
+
+  useEffect(() => {
+    if (data?.default_recipient_email && !testEmail) {
+      setTestEmail(data.default_recipient_email);
+    }
+  }, [data?.default_recipient_email, testEmail]);
 
   return (
     <Card title="SMTP Configuration">
@@ -133,12 +147,15 @@ function SmtpTab() {
       ) : null}
       <form
         className="grid gap-4 md:grid-cols-2"
+        autoComplete="off"
         noValidate
         onSubmit={(e: FormEvent) => {
           e.preventDefault();
           save.mutate();
         }}
       >
+        <input type="text" tabIndex={-1} autoComplete="username" className="hidden" aria-hidden="true" />
+        <input type="password" tabIndex={-1} autoComplete="current-password" className="hidden" aria-hidden="true" />
         <label className="space-y-1 text-sm">
           SMTP Server
           <input className="w-full" value={current.host || ""} onChange={(e) => setForm({ ...form, host: e.target.value })} />
@@ -149,11 +166,30 @@ function SmtpTab() {
         </label>
         <label className="space-y-1 text-sm">
           Username
-          <input className="w-full" value={current.username || ""} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+          <input
+            className="w-full"
+            name="smtp-username"
+            autoComplete="off"
+            spellCheck={false}
+            readOnly={isLoading}
+            onFocus={(e) => e.currentTarget.removeAttribute("readonly")}
+            value={current.username || ""}
+            onChange={(e) => setForm({ ...form, username: e.target.value })}
+            disabled={isLoading || !data}
+          />
         </label>
         <label className="space-y-1 text-sm">
-          Password {data?.password_set ? "(leave blank to keep)" : ""}
-          <input type="password" className="w-full" onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          Password {data?.password_set ? "(leave blank to keep saved password)" : ""}
+          <input
+            type="password"
+            className="w-full"
+            name="smtp-password"
+            autoComplete="new-password"
+            placeholder={data?.password_set ? "Saved password is stored securely" : ""}
+            value={form.password ?? ""}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            disabled={isLoading || !data}
+          />
         </label>
         <label className="space-y-1 text-sm">
           Sender Name
@@ -171,6 +207,18 @@ function SmtpTab() {
           />
         </label>
         <label className="space-y-1 text-sm">
+          Default Notification Recipient
+          <input
+            type="text"
+            inputMode="email"
+            className="w-full"
+            placeholder="alerts@yourdomain.com"
+            value={current.default_recipient_email || ""}
+            onChange={(e) => setForm({ ...form, default_recipient_email: e.target.value })}
+            required
+          />
+        </label>
+        <label className="space-y-1 text-sm">
           TLS Server Name
           <input
             className="w-full"
@@ -179,14 +227,12 @@ function SmtpTab() {
             onChange={(e) => setForm({ ...form, tls_server_name: e.target.value })}
           />
         </label>
-        <label className="flex items-center gap-2 text-sm md:col-span-2">
-          <input
-            type="checkbox"
-            checked={current.verify_tls_certificate ?? true}
-            onChange={(e) => setForm({ ...form, verify_tls_certificate: e.target.checked })}
-          />
-          Verify TLS certificate (disable only for trusted internal SMTP servers)
-        </label>
+        <Checkbox
+          labelClassName="md:col-span-2"
+          checked={current.verify_tls_certificate ?? true}
+          onChange={(checked) => setForm({ ...form, verify_tls_certificate: checked })}
+          label="Verify TLS certificate (disable only for trusted internal SMTP servers)"
+        />
         <label className="space-y-1 text-sm md:col-span-2">
           Encryption
           <select
@@ -208,7 +254,11 @@ function SmtpTab() {
           </select>
         </label>
         <p className="md:col-span-2 text-xs text-white/50">
-          If SMTP host is an IP address (for example 192.168.50.55), enter the hostname shown on the mail server
+          Default notification recipient receives all proxy alerts, status reports, and other outgoing emails unless
+          additional recipients are configured under Notifications.
+        </p>
+        <p className="md:col-span-2 text-xs text-white/50">
+          If SMTP host is an IP address (for example 192.168.1.55), enter the hostname shown on the mail server
           certificate in TLS Server Name. For internal servers with self-signed certificates, you can disable
           certificate verification.
         </p>
@@ -216,13 +266,13 @@ function SmtpTab() {
           STARTTLS upgrades a plain connection with TLS after connect. SSL/SMTPS uses encrypted connection from the start.
         </p>
         <div className="md:col-span-2 flex flex-wrap items-center gap-3">
-          <button type="submit" className="rounded-lg bg-accent px-4 py-2 text-sm" disabled={isLoading || save.isPending}>
+          <button type="submit" className="rounded-lg bg-accent px-4 py-2 text-sm" disabled={isLoading || !data || save.isPending}>
             Save
           </button>
           <button type="button" className="rounded-lg bg-white/10 px-4 py-2 text-sm" onClick={() => testConn.mutate()}>
             Test Connection
           </button>
-          <input className="rounded-lg bg-black/20 px-3 py-2 text-sm" placeholder="test@example.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} />
+          <input className="rounded-lg bg-black/20 px-3 py-2 text-sm" placeholder="Override test recipient (optional)" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} />
           <button type="button" className="rounded-lg bg-white/10 px-4 py-2 text-sm" onClick={() => sendTest.mutate()}>
             Send Test Email
           </button>
@@ -316,41 +366,37 @@ function NotificationsTab() {
             <input className="rounded-lg bg-black/20 px-3 py-2 text-sm" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
             <input className="rounded-lg bg-black/20 px-3 py-2 text-sm" placeholder="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
           </div>
-          <div className="flex flex-wrap gap-4 text-sm">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
-              Enabled
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={form.email_enabled} onChange={(e) => setForm({ ...form, email_enabled: e.target.checked })} />
-              Email enabled
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={form.critical_only} onChange={(e) => setForm({ ...form, critical_only: e.target.checked })} />
-              Critical only
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={form.all_notifications}
-                onChange={(e) => setForm({ ...form, all_notifications: e.target.checked, enabled_types: e.target.checked ? [] : form.enabled_types })}
-              />
-              All notification types
-            </label>
+          <div className="ui-checkbox-group">
+            <Checkbox checked={form.enabled} onChange={(checked) => setForm({ ...form, enabled: checked })} label="Enabled" />
+            <Checkbox
+              checked={form.email_enabled}
+              onChange={(checked) => setForm({ ...form, email_enabled: checked })}
+              label="Email enabled"
+            />
+            <Checkbox
+              checked={form.critical_only}
+              onChange={(checked) => setForm({ ...form, critical_only: checked })}
+              label="Critical only"
+            />
+            <Checkbox
+              checked={form.all_notifications}
+              onChange={(checked) =>
+                setForm({ ...form, all_notifications: checked, enabled_types: checked ? [] : form.enabled_types })
+              }
+              label="All notification types"
+            />
           </div>
           {!form.all_notifications ? (
             <div>
               <p className="mb-2 text-sm font-medium">Event types</p>
-              <div className="grid gap-2 md:grid-cols-2">
+              <div className="ui-checkbox-grid">
                 {NOTIFICATION_EVENT_OPTIONS.map((option) => (
-                  <label key={option.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={form.enabled_types.includes(option.id)}
-                      onChange={() => toggleEventType(option.id)}
-                    />
-                    {option.label}
-                  </label>
+                  <Checkbox
+                    key={option.id}
+                    checked={form.enabled_types.includes(option.id)}
+                    onChange={() => toggleEventType(option.id)}
+                    label={option.label}
+                  />
                 ))}
               </div>
             </div>
@@ -511,14 +557,11 @@ function StatusReportsTab() {
           save.mutate();
         }}
       >
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={current.enabled}
-            onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-          />
-          Enable scheduled status report emails
-        </label>
+        <Checkbox
+          checked={current.enabled}
+          onChange={(checked) => setForm({ ...form, enabled: checked })}
+          label="Enable scheduled status report emails"
+        />
         <label className="block space-y-1 text-sm">
           Send interval (hours)
           <input
@@ -532,24 +575,21 @@ function StatusReportsTab() {
         </label>
         <div>
           <p className="mb-2 text-sm font-medium">Include in report</p>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="ui-checkbox-grid">
             {sectionOptions.map((section) => (
-              <label key={section.id} className="flex gap-3 rounded-lg bg-black/20 p-3 text-sm">
-                <input
-                  type="checkbox"
-                  checked={current.enabled_sections?.includes(section.id)}
-                  onChange={() => toggleSection(section.id)}
-                />
-                <span>
-                  <span className="font-medium">{section.label}</span>
-                  <span className="mt-1 block text-white/60">{section.description}</span>
-                </span>
-              </label>
+              <Checkbox
+                key={section.id}
+                variant="card"
+                checked={current.enabled_sections?.includes(section.id) ?? false}
+                onChange={() => toggleSection(section.id)}
+                label={section.label}
+                description={section.description}
+              />
             ))}
           </div>
         </div>
         <p className="text-xs text-white/50">
-          Reports are sent to all notification recipients with email enabled. Configure SMTP and recipients in the other tabs.
+          Reports are sent to the default SMTP recipient and any notification recipients with email enabled.
         </p>
         {data?.last_sent_at ? (
           <p className="text-xs text-white/50">Last sent: {new Date(data.last_sent_at).toLocaleString()}</p>

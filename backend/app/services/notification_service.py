@@ -184,7 +184,10 @@ class NotificationService:
                 if event_type.value not in enabled_types:
                     continue
             emails.append(row.email)
-        return emails
+        return SmtpService.merge_recipient_emails(
+            emails,
+            default_email=self.smtp.default_recipient_email(),
+        )
 
     def dispatch_backend_offline(self, server: BackendServer) -> None:
         pool_name = server.pool.name if server.pool else ""

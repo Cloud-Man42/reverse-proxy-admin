@@ -19,6 +19,7 @@ class SmtpSettings(Base):
     ssl_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     sender_name: Mapped[str] = mapped_column(String(255), default=APP_NAME)
     sender_email: Mapped[str] = mapped_column(String(255), default="")
+    default_recipient_email: Mapped[str] = mapped_column(String(255), default="")
     tls_server_name: Mapped[str] = mapped_column(String(255), default="")
     verify_tls_certificate: Mapped[bool] = mapped_column(Boolean, default=True)
     last_test_status: Mapped[str] = mapped_column(String(32), default="unknown")

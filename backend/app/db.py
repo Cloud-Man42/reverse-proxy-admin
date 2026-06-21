@@ -72,6 +72,7 @@ def migrate_smtp_columns() -> None:
     additions = {
         "tls_server_name": "VARCHAR(255) DEFAULT ''",
         "verify_tls_certificate": "BOOLEAN DEFAULT 1",
+        "default_recipient_email": "VARCHAR(255) DEFAULT ''",
     }
     with engine.begin() as conn:
         for name, ddl in additions.items():

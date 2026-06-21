@@ -1,12 +1,13 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from app.schemas import CertbotEmailStr
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models.user import User
-from app.schemas import MessageResponse, SmtpSettingsResponse, SmtpSettingsUpdate, SmtpTestResponse
+from app.schemas import MessageResponse, SmtpSettingsResponse, SmtpSettingsUpdate, SmtpTestResponse, SmtpSenderEmailStr
 from app.security.ip_allowlist import _client_ip
 from app.security.permissions import require_admin
 from app.services.audit_service import log_audit
@@ -61,7 +62,7 @@ async def test_smtp_connection(
 
 
 class TestEmailRequest(BaseModel):
-    email: CertbotEmailStr
+    email: Optional[SmtpSenderEmailStr] = None
 
 
 @router.post("/send-test", response_model=SmtpTestResponse)

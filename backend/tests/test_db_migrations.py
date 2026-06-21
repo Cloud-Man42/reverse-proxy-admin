@@ -27,3 +27,4 @@ def test_migrate_smtp_columns_adds_missing_fields(tmp_path, monkeypatch):
     columns = {col["name"] for col in inspect(test_engine).get_columns("smtp_settings")}
     assert "tls_server_name" in columns
     assert "verify_tls_certificate" in columns
+    assert "default_recipient_email" in columns

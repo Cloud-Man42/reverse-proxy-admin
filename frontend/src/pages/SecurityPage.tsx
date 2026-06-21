@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../api/client";
 import { Card } from "../components/Card";
+import { Checkbox } from "../components/Checkbox";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
@@ -411,14 +412,11 @@ function WafSection() {
       </label>
       {effective && (
         <div className="mt-4 space-y-3">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={effective.enabled}
-              onChange={(e) => setForm({ ...effective, enabled: e.target.checked })}
-            />
-            Enabled
-          </label>
+          <Checkbox
+            checked={effective.enabled}
+            onChange={(checked) => setForm({ ...effective, enabled: checked })}
+            label="Enabled"
+          />
           <label className="block text-sm">
             Mode
             <select

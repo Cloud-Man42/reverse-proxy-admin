@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../api/client";
 import { Card } from "../components/Card";
+import { Checkbox } from "../components/Checkbox";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { StatusBadge } from "../components/StatusBadge";
 import { useAuth } from "../hooks/useAuth";
@@ -101,10 +102,12 @@ export function TenantsPage() {
               <label className="mb-1 block text-sm">Name</label>
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
             </div>
-            <label className="flex items-center gap-2 text-sm md:col-span-2">
-              <input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
-              Enabled
-            </label>
+            <Checkbox
+              labelClassName="md:col-span-2"
+              checked={form.enabled}
+              onChange={(checked) => setForm({ ...form, enabled: checked })}
+              label="Enabled"
+            />
             <div className="flex gap-2 md:col-span-2">
               <button type="submit" className="rounded-lg bg-accent px-4 py-2 text-sm text-white" disabled={saveMutation.isPending}>
                 Save

@@ -190,7 +190,10 @@ class StatusReportService:
             pref = row.preferences
             if pref and pref.email_enabled:
                 emails.append(row.email)
-        return emails
+        return SmtpService.merge_recipient_emails(
+            emails,
+            default_email=self.smtp.default_recipient_email(),
+        )
 
     def _get_or_create_settings(self) -> StatusReportSettings:
         row = self.db.query(StatusReportSettings).first()

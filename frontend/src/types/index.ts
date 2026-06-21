@@ -83,6 +83,7 @@ export interface SmtpSettings {
   ssl_enabled: boolean;
   sender_name: string;
   sender_email: string;
+  default_recipient_email: string;
   tls_server_name: string;
   verify_tls_certificate: boolean;
   last_test_status: string;

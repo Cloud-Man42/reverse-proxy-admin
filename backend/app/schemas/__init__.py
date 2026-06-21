@@ -549,6 +549,7 @@ class SmtpSettingsUpdate(BaseModel):
     ssl_enabled: bool = False
     sender_name: str = Field(max_length=255)
     sender_email: SmtpSenderEmailStr = ""
+    default_recipient_email: SmtpSenderEmailStr = ""
     tls_server_name: str = Field(default="", max_length=255)
     verify_tls_certificate: bool = True
 
@@ -571,6 +572,7 @@ class SmtpSettingsResponse(BaseModel):
     ssl_enabled: bool
     sender_name: str
     sender_email: str
+    default_recipient_email: str
     tls_server_name: str
     verify_tls_certificate: bool
     last_test_status: str

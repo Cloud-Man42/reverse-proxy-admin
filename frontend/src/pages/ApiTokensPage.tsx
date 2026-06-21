@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../api/client";
 import { Card } from "../components/Card";
+import { Checkbox } from "../components/Checkbox";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
@@ -118,16 +119,14 @@ export function ApiTokensPage() {
             </label>
             <div>
               <p className="mb-2 text-sm text-white/70">Scopes</p>
-              <div className="grid gap-2 md:grid-cols-2">
+              <div className="ui-checkbox-grid">
                 {scopes.map((scope) => (
-                  <label key={scope} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={form.scopes.includes(scope)}
-                      onChange={() => toggleScope(scope)}
-                    />
-                    <span>{scope}</span>
-                  </label>
+                  <Checkbox
+                    key={scope}
+                    checked={form.scopes.includes(scope)}
+                    onChange={() => toggleScope(scope)}
+                    label={scope}
+                  />
                 ))}
               </div>
             </div>

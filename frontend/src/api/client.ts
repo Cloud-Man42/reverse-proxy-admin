@@ -184,8 +184,11 @@ export const api = {
     request<import("../types").SmtpSettings>("/api/smtp", { method: "PUT", body: JSON.stringify(payload) }),
   testSmtpConnection: () =>
     request<import("../types").SmtpTestResult>("/api/smtp/test-connection", { method: "POST" }),
-  sendSmtpTestEmail: (email: string) =>
-    request<import("../types").SmtpTestResult>("/api/smtp/send-test", { method: "POST", body: JSON.stringify({ email }) }),
+  sendSmtpTestEmail: (email?: string) =>
+    request<import("../types").SmtpTestResult>("/api/smtp/send-test", {
+      method: "POST",
+      body: JSON.stringify({ email: email || null }),
+    }),
   listNotificationRecipients: () =>
     request<import("../types").NotificationRecipient[]>("/api/notifications/recipients"),
   createNotificationRecipient: (payload: unknown) =>

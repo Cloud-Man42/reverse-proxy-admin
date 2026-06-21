@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
+import { Checkbox } from "./Checkbox";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { TrafficDebugEntry } from "../types";
 
@@ -43,10 +44,7 @@ export function TrafficDebugPanel({ proxyId, domains, title = "Inbound traffic d
             Live view of requests hitting this proxy&apos;s inbound interface ({domains.join(", ")}).
           </p>
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={debugEnabled} onChange={(e) => setDebugEnabled(e.target.checked)} />
-          Debug mode
-        </label>
+        <Checkbox checked={debugEnabled} onChange={setDebugEnabled} label="Debug mode" />
       </div>
 
       {debugEnabled ? (

@@ -4,7 +4,7 @@ from app.services.access_log_parser import entry_matches_domains, parse_access_l
 def test_parse_combined_access_line():
     line = (
         '198.51.100.25 - - [17/Jun/2026:13:08:39 +0000] "GET /api/proxies HTTP/1.1" '
-        '200 1673 "https://10.10.20.5:8443/proxies" "Mozilla/5.0"'
+        '200 1673 "https://203.0.113.1:8443/proxies" "Mozilla/5.0"'
     )
     parsed = parse_access_line(line)
     assert parsed is not None

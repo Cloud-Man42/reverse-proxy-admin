@@ -17,9 +17,10 @@ def test_smtp_settings_allow_empty_sender_email(client, auth_session):
         json={
             "host": "smtp.example.com",
             "port": 587,
-            "username": "mailer@acme-labs.net",
+            "username": "mailer@example.com",
             "sender_name": "Admin",
             "sender_email": "",
+            "default_recipient_email": "alerts@example.com",
             "security_mode": "starttls",
         },
         cookies=auth_session["cookies"],
@@ -27,6 +28,7 @@ def test_smtp_settings_allow_empty_sender_email(client, auth_session):
     )
     assert response.status_code == 200
     assert response.json()["sender_email"] == ""
+    assert response.json()["default_recipient_email"] == "alerts@example.com"
 
 
 @pytest.mark.api

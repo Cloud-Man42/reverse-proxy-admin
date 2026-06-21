@@ -25,12 +25,53 @@ button, input, select, textarea {
   color: inherit;
 }
 
-input, select, textarea {
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
   @apply w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm;
 }
 
-html:not(.dark) input,
+html:not(.dark) input:not([type="checkbox"]):not([type="radio"]),
 html:not(.dark) select,
 html:not(.dark) textarea {
   @apply bg-white border-slate-200;
+}
+
+@layer components {
+  .ui-checkbox {
+    @apply h-4 w-4 shrink-0 cursor-pointer rounded border border-white/30 bg-black/30 accent-[rgb(var(--accent))];
+    appearance: auto;
+  }
+
+  html:not(.dark) .ui-checkbox {
+    @apply border-slate-300 bg-white;
+  }
+
+  .ui-checkbox:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  .ui-checkbox-label {
+    @apply flex cursor-pointer select-none items-start gap-3 text-sm;
+  }
+
+  .ui-checkbox-label-inline {
+    @apply items-center;
+  }
+
+  .ui-checkbox-card {
+    @apply flex cursor-pointer select-none items-start gap-3 rounded-lg border border-white/10 bg-black/20 p-3 text-sm transition-colors hover:bg-black/30;
+  }
+
+  html:not(.dark) .ui-checkbox-card {
+    @apply border-slate-200 bg-white hover:bg-slate-50;
+  }
+
+  .ui-checkbox-group {
+    @apply flex flex-wrap gap-x-6 gap-y-3;
+  }
+
+  .ui-checkbox-grid {
+    @apply grid gap-3 md:grid-cols-2;
+  }
 }

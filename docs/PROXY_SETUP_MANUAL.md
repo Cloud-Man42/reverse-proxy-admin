@@ -9,13 +9,13 @@ This guide explains how to create and manage reverse proxy applications in the A
 | Role | Example value |
 |------|----------------|
 | Public WAN IP | `203.0.113.10` |
-| Reverse proxy (LAN) | `10.10.20.5` |
-| Web app backend | `10.10.20.40:3000` |
-| API backend | `10.10.20.41:8080` |
-| Backend on another VLAN | `10.10.30.15:4000` |
+| Reverse proxy (LAN) | `10.0.0.5` |
+| Web app backend | `10.0.0.40:3000` |
+| API backend | `10.0.0.41:8080` |
+| Backend on another VLAN | `10.0.1.15:4000` |
 | Public domains | `portal.example.com`, `calendar.example.com` |
 | Proxy app slugs | `portal-app`, `calendar-app` |
-| Admin UI URL | `https://10.10.20.5:8443` |
+| Admin UI URL | `https://10.0.0.5:8443` |
 
 ---
 
@@ -78,9 +78,9 @@ For a typical public web app with Force HTTPS enabled:
 Internet client
     → DNS resolves portal.example.com to 203.0.113.10 (public IP)
     → Edge firewall / NAT (port 443 forwarded)
-    → Nginx on reverse proxy host (10.10.20.5)
+    → Nginx on reverse proxy host (10.0.0.5)
         → TLS terminated using /etc/letsencrypt/live/portal.example.com/
-        → proxy_pass to https://10.10.20.40:3000
+        → proxy_pass to https://10.0.0.40:3000
     → Backend application
 ```
 
@@ -105,7 +105,7 @@ Let's Encrypt HTTP-01 validation (via the certbot nginx plugin) must reach your 
 
 ## 4. Access the Admin UI
 
-1. Open **`https://10.10.20.5:8443`** (or your proxy host) from an allowed network (see `ALLOWED_IPS` in env).
+1. Open **`https://10.0.0.5:8443`** (or your proxy host) from an allowed network (see `ALLOWED_IPS` in env).
 2. Log in with the administrator account configured during installation. Change the default password under **Users** before production use.
 3. Use the sidebar:
    - **Dashboard** — overview and network map
@@ -131,7 +131,7 @@ Decide:
 
 - **App name** — internal slug (e.g. `portal-app`). Becomes the config filename: `portal-app.conf`
 - **Domain(s)** — what users type in the browser (e.g. `portal.example.com`)
-- **Backend** — IP, port, and protocol nginx should use **from the proxy server** (e.g. `10.10.20.40`, `3000`, `https`)
+- **Backend** — IP, port, and protocol nginx should use **from the proxy server** (e.g. `10.0.0.40`, `3000`, `https`)
 
 ### Step 2 — Issue a certificate (if using HTTPS)
 
@@ -139,7 +139,7 @@ Skip only if you serve plain HTTP on port 80 with Force HTTPS **off**.
 
 1. Go to **Certificates**.
 2. Enter the **exact domain** (e.g. `portal.example.com`).
-3. Enter a valid contact email (e.g. `ops@acme-labs.example`) or rely on `CERTBOT_EMAIL` in env.
+3. Enter a valid contact email (e.g. `ops@acme-labs.net`) or rely on `CERTBOT_EMAIL` in env.
 4. Click **Issue**.
 5. Wait for success. Certbot modifies nginx and stores files under `/etc/letsencrypt/live/<domain>/`.
 
@@ -225,7 +225,7 @@ Each route maps a **path prefix** on the public domain to a **backend**.
 Certbot runs with the nginx plugin:
 
 ```text
-certbot --nginx -d portal.example.com --non-interactive --agree-tos -m ops@acme-labs.example
+certbot --nginx -d portal.example.com --non-interactive --agree-tos -m ops@acme-labs.net
 ```
 
 It inserts temporary validation locations, obtains the cert, and updates nginx.
@@ -305,8 +305,8 @@ One domain can split traffic by path:
 
 | Path prefix | Backend | Use case |
 |-------------|---------|----------|
-| `/` | `http://10.10.20.40:3000` | Main web UI |
-| `/api` | `http://10.10.20.41:8080` | API server |
+| `/` | `http://10.0.0.40:3000` | Main web UI |
+| `/api` | `http://10.0.0.41:8080` | API server |
 
 **Why one app instead of two:** same `server_name`, shared TLS cert, single access log and admin entry.
 
@@ -334,15 +334,15 @@ Renaming an app is a special case: new file created, old file removed, with full
 
 ### Example A — Public HTTPS web app (Acme Labs portal)
 
-**Goal:** `https://portal.example.com` → application on `10.10.20.40:3000`
+**Goal:** `https://portal.example.com` → application on `10.0.0.40:3000`
 
 1. DNS: `portal.example.com` → `203.0.113.10` (public IP)  
-2. Router: forward 80/443 → `10.10.20.5` (proxy)  
+2. Router: forward 80/443 → `10.0.0.5` (proxy)  
 3. **Certificates:** issue for `portal.example.com`  
 4. **Create proxy:**
    - Name: `portal-app`
    - Domains: `portal.example.com`
-   - Route: `/` → `https` → `10.10.20.40` → `3000`
+   - Route: `/` → `https` → `10.0.0.40` → `3000`
    - Force HTTPS: **on**
    - Enabled: **on**
 5. Test traffic flow → Save  
@@ -355,18 +355,18 @@ Renaming an app is a special case: new file created, old file removed, with full
 **Goal:** `http://tools.internal.example` on LAN only
 
 1. Create proxy with Force HTTPS **off**
-2. Route `/` → `http` → `10.10.20.50` → `8080`
+2. Route `/` → `http` → `10.0.0.50` → `8080`
 3. No certificate required
 4. Ensure internal DNS or hosts file resolves on LAN only
 
 ### Example C — Backend on another subnet
 
-**Problem:** Backend at `10.10.30.15:4000` (VLAN 30), proxy at `10.10.20.5` (VLAN 20) — flow test fails.
+**Problem:** Backend at `10.0.1.15:4000` (VLAN 30), proxy at `10.0.0.5` (VLAN 20) — flow test fails.
 
 **Fix options:**
 
 - Add router/firewall routing between VLAN 20 and VLAN 30, **or**
-- Give the backend an address on `10.10.20.x`, **or**
+- Give the backend an address on `10.0.0.x`, **or**
 - Move backend to same subnet as proxy
 
 The Admin UI cannot fix network routing; it only reports that the proxy cannot open TCP to the upstream.
@@ -394,7 +394,7 @@ The Admin UI cannot fix network routing; it only reports that the proxy cannot o
 sudo bash /opt/reverse-proxy-admin/deploy/diagnose-flow.sh portal-app portal.example.com
 
 # Test upstream from proxy
-nc -zv 10.10.20.40 3000
+nc -zv 10.0.0.40 3000
 
 # Watch app access log
 sudo tail -f /var/log/nginx/proxy-portal-app.log
@@ -410,7 +410,7 @@ sudo nginx -t
 Before going live with a new public HTTPS app:
 
 - [ ] DNS A record → public IP (e.g. `203.0.113.10`)  
-- [ ] Router forwards **80** and **443** → reverse proxy host (e.g. `10.10.20.5`)  
+- [ ] Router forwards **80** and **443** → reverse proxy host (e.g. `10.0.0.5`)  
 - [ ] Certificate issued for primary domain  
 - [ ] Upstream IP reachable **from proxy server** (flow test green)  
 - [ ] Force HTTPS enabled after cert exists  
