@@ -24,7 +24,7 @@ from app.models.system_alert import SystemAlertHistory
 
 from app.models.user import User
 
-from app.schemas import AuditLogListResponse, AuditLogResponse, DashboardAlert, DashboardStats, MessageResponse, NetworkMapResponse, NginxStatusResponse, NginxTestResult, SystemHealthResponse
+from app.schemas import AuditLogListResponse, AuditLogResponse, DashboardAlert, DashboardStats, MessageResponse, NetworkMapResponse, NginxStatusResponse, NginxTestResult, ProxyTrafficHistoryPoint, SystemHealthResponse
 
 from app.security.permissions import Permission, require_admin, require_permission
 from app.security.tenant_context import filter_query_by_org
@@ -41,6 +41,8 @@ from app.services.certificate_service import CertificateService
 from app.services.health_check_service import HealthCheckService
 
 from app.services.log_reader import LogReader
+
+from app.services.metrics_service import MetricsService
 
 from app.services.network_map_service import NetworkMapService
 
@@ -176,31 +178,7 @@ async def dashboard(
 
 ) -> DashboardStats:
 
-    proxies = ProxyService(settings, db).list_proxies()
-
-    active = sum(1 for item in proxies if item.enabled)
-
-    disabled = sum(1 for item in proxies if not item.enabled)
-
-    inactive = len(proxies) - active
-
-    nginx_active, _ = NginxOps(settings).status()
-
-    total_certs = 0
-
-    expiring = 0
-
-    try:
-
-        certs = CertificateService(settings, db).list_certificates()
-
-        total_certs = len(certs)
-
-        expiring = sum(1 for cert in certs if cert.status == "expiring")
-
-    except Exception:
-
-        pass
+    metrics = MetricsService(settings, db).dashboard()
 
     try:
 
@@ -210,57 +188,93 @@ async def dashboard(
 
         recent_errors = []
 
-    health = HealthCheckService(settings, db).get_dashboard()
+    proxy_overview = metrics["proxy_overview"]
 
-    servers, _ = BackendPoolService(settings, db).list_servers(page_size=1000)
+    system_health = metrics["system_health"]
 
-    smtp_status = SmtpService(settings, db).status_label()
+    live_traffic = metrics["live_traffic"]
 
-    traffic_service = ProxyTrafficService(settings, db)
+    ssl_overview = metrics["ssl_overview"]
 
-    bytes_in, bytes_out = traffic_service.total_bytes("24h")
+    recent_alerts = [
 
-    traffic_history = traffic_service.aggregate_history("24h")
+        DashboardAlert(
 
-    cpu_percent, ram_percent, disk_percent = _system_metrics(settings)
+            id=index,
 
-    recent_alerts = _recent_alerts(db)
+            source=str(alert.get("source", "metric")),
+
+            alert_type=str(alert.get("severity", "info")),
+
+            title=str(alert.get("title", "Alert")),
+
+            message=alert.get("message"),
+
+            status=str(alert.get("status", "info")),
+
+            created_at=alert.get("created_at"),
+
+        )
+
+        for index, alert in enumerate(metrics.get("alerts", []))
+
+    ]
+
+    traffic_history = [
+
+        ProxyTrafficHistoryPoint(
+
+            timestamp=point["timestamp"],
+
+            connections=int(point.get("requests", 0)),
+
+            bytes_in=int(point.get("bytes_in", 0)),
+
+            bytes_out=int(point.get("bytes_out", 0)),
+
+        )
+
+        for point in metrics.get("traffic_history", [])
+
+    ]
+
+    nginx_active = system_health.get("nginx_status") == "running"
 
     return DashboardStats(
 
-        active_proxies=active,
+        active_proxies=int(proxy_overview["active"]),
 
-        inactive_proxies=inactive,
+        inactive_proxies=int(proxy_overview["disabled"]),
 
-        disabled_proxies=disabled,
+        disabled_proxies=int(proxy_overview["disabled"]),
 
         nginx_active=nginx_active,
 
-        expiring_certificates=expiring,
+        expiring_certificates=int(ssl_overview["expiring"]),
 
         recent_errors=recent_errors,
 
-        total_backend_servers=len(servers),
+        total_backend_servers=int(proxy_overview["total_backends"]),
 
-        healthy_backends=health.healthy,
+        healthy_backends=int(proxy_overview["healthy_backends"]),
 
-        warning_backends=health.warning,
+        warning_backends=int(proxy_overview["warning_backends"]),
 
-        offline_backends=health.offline,
+        offline_backends=int(proxy_overview["offline_backends"]),
 
-        total_certificates=total_certs,
+        total_certificates=int(ssl_overview["total"]),
 
-        smtp_status=smtp_status,
+        smtp_status=str(system_health.get("smtp_status", "unknown")),
 
-        traffic_bytes_in_24h=bytes_in,
+        traffic_bytes_in_24h=int(live_traffic["bandwidth_in"]),
 
-        traffic_bytes_out_24h=bytes_out,
+        traffic_bytes_out_24h=int(live_traffic["bandwidth_out"]),
 
-        cpu_percent=cpu_percent,
+        cpu_percent=system_health.get("cpu_percent"),
 
-        ram_percent=ram_percent,
+        ram_percent=system_health.get("ram_percent"),
 
-        disk_percent=disk_percent,
+        disk_percent=system_health.get("disk_percent"),
 
         recent_alerts=recent_alerts,
 

@@ -28,13 +28,36 @@ button, input, select, textarea {
 input:not([type="checkbox"]):not([type="radio"]),
 select,
 textarea {
-  @apply w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm;
+  @apply w-full rounded-lg border border-white/10 px-3 py-2 text-sm;
+  background-color: rgb(var(--surface-muted));
+  color: rgb(var(--content));
+}
+
+html.dark select {
+  color-scheme: dark;
 }
 
 html:not(.dark) input:not([type="checkbox"]):not([type="radio"]),
 html:not(.dark) select,
 html:not(.dark) textarea {
-  @apply bg-white border-slate-200;
+  @apply border-slate-200;
+  background-color: rgb(var(--surface-muted));
+  color: rgb(var(--content));
+}
+
+html:not(.dark) select {
+  color-scheme: light;
+}
+
+select option,
+select optgroup {
+  background-color: rgb(var(--surface-muted));
+  color: rgb(var(--content));
+}
+
+select:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
 }
 
 @layer components {

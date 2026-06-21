@@ -101,7 +101,7 @@ function IpRulesSection() {
           <label className="text-sm">
             Scope
             <select
-              className="mt-1 w-full rounded-lg bg-white/10 px-3 py-2"
+              className="mt-1 w-full"
               value={form.scope}
               onChange={(e) => setForm({ ...form, scope: e.target.value as "global" | "proxy" })}
             >
@@ -113,7 +113,7 @@ function IpRulesSection() {
             <label className="text-sm">
               Proxy
               <select
-                className="mt-1 w-full rounded-lg bg-white/10 px-3 py-2"
+                className="mt-1 w-full"
                 value={form.proxy_id}
                 onChange={(e) => setForm({ ...form, proxy_id: e.target.value })}
               >
@@ -129,7 +129,7 @@ function IpRulesSection() {
           <label className="text-sm">
             Type
             <select
-              className="mt-1 w-full rounded-lg bg-white/10 px-3 py-2"
+              className="mt-1 w-full"
               value={form.rule_type}
               onChange={(e) => setForm({ ...form, rule_type: e.target.value as "allow" | "deny" })}
             >
@@ -140,7 +140,7 @@ function IpRulesSection() {
           <label className="text-sm">
             CIDR
             <input
-              className="mt-1 w-full rounded-lg bg-white/10 px-3 py-2"
+              className="mt-1 w-full"
               value={form.cidr}
               onChange={(e) => setForm({ ...form, cidr: e.target.value })}
               placeholder="10.0.0.0/8"
@@ -224,7 +224,7 @@ function GeoRulesSection() {
           <label className="block text-sm">
             Proxy
             <select
-              className="mt-1 w-full rounded-lg bg-white/10 px-3 py-2"
+              className="mt-1 w-full"
               value={form.proxy_id}
               onChange={(e) => setForm({ ...form, proxy_id: e.target.value })}
               required
@@ -240,7 +240,7 @@ function GeoRulesSection() {
           <label className="block text-sm">
             Mode
             <select
-              className="mt-1 w-full rounded-lg bg-white/10 px-3 py-2"
+              className="mt-1 w-full"
               value={form.mode}
               onChange={(e) => setForm({ ...form, mode: e.target.value as "block" | "allow" })}
             >
@@ -370,15 +370,26 @@ function ThreatFeedsSection() {
 function WafSection() {
   const { showSuccess, showError } = useToast();
   const { data: proxies = [] } = useQuery({ queryKey: ["proxies"], queryFn: api.listProxies });
+  const { data: platform } = useQuery({ queryKey: ["waf-status"], queryFn: api.getWafPlatformStatus });
   const [proxyId, setProxyId] = useState("");
-  const { data: waf, refetch } = useQuery({
+  const { data: waf, refetch, isError, isLoading } = useQuery({
     queryKey: ["waf", proxyId],
     queryFn: () => api.getWafSettings(proxyId),
     enabled: Boolean(proxyId),
   });
   const [form, setForm] = useState<ProxyWafSettings | null>(null);
 
-  const effective = form ?? waf;
+  const defaultSettings = proxyId
+    ? ({
+        proxy_id: proxyId,
+        enabled: false,
+        mode: "detection",
+        profile: "medium",
+        exclusions: [],
+      } satisfies ProxyWafSettings)
+    : null;
+
+  const effective = form ?? waf ?? defaultSettings;
 
   const saveMutation = useMutation({
     mutationFn: () => api.updateWafSettings(proxyId, effective),
@@ -391,11 +402,18 @@ function WafSection() {
 
   return (
     <Card title="WAF settings (ModSecurity)">
-      <p className="mb-3 text-sm text-white/60">Requires ModSecurity — see deploy/setup-modsecurity.sh</p>
+      {platform?.modsecurity_ready ? (
+        <p className="mb-3 text-sm text-emerald-300/90">ModSecurity and OWASP CRS are installed on this server.</p>
+      ) : (
+        <p className="mb-3 text-sm text-amber-300/90">
+          ModSecurity is not configured on this server. Install it with{" "}
+          <code className="rounded bg-white/10 px-1">sudo bash deploy/setup-modsecurity.sh</code>
+        </p>
+      )}
       <label className="block text-sm">
         Proxy
         <select
-          className="mt-1 w-full rounded-lg bg-white/10 px-3 py-2"
+          className="mt-1 w-full"
           value={proxyId}
           onChange={(e) => {
             setProxyId(e.target.value);
@@ -410,6 +428,12 @@ function WafSection() {
           ))}
         </select>
       </label>
+      {isError ? (
+        <p className="mt-3 text-sm text-amber-300/90">
+          Could not load saved WAF settings. Showing defaults — you can still configure and save.
+        </p>
+      ) : null}
+      {isLoading && proxyId ? <p className="mt-3 text-sm text-white/60">Loading WAF settings…</p> : null}
       {effective && (
         <div className="mt-4 space-y-3">
           <Checkbox
@@ -420,7 +444,7 @@ function WafSection() {
           <label className="block text-sm">
             Mode
             <select
-              className="mt-1 w-full rounded-lg bg-white/10 px-3 py-2"
+              className="mt-1 w-full"
               value={effective.mode}
               onChange={(e) => setForm({ ...effective, mode: e.target.value as ProxyWafSettings["mode"] })}
             >
@@ -431,7 +455,7 @@ function WafSection() {
           <label className="block text-sm">
             Profile
             <select
-              className="mt-1 w-full rounded-lg bg-white/10 px-3 py-2"
+              className="mt-1 w-full"
               value={effective.profile}
               onChange={(e) => setForm({ ...effective, profile: e.target.value as ProxyWafSettings["profile"] })}
             >
@@ -442,7 +466,8 @@ function WafSection() {
           </label>
           <button
             type="button"
-            className="rounded-lg bg-accent px-4 py-2 text-sm text-white"
+            className="rounded-lg bg-accent px-4 py-2 text-sm text-white disabled:opacity-50"
+            disabled={!platform?.modsecurity_ready}
             onClick={() => saveMutation.mutate()}
           >
             Save WAF settings

@@ -69,7 +69,11 @@ class Settings(BaseSettings):
     health_warning_ms: int = 2000
     proxy_traffic_interval_seconds: int = 60
     status_report_check_interval_seconds: int = 3600
-    threat_feed_sync_interval_seconds: int = 3600
+    threat_feed_sync_interval_seconds: int = 86400
+    metrics_retention_interval_seconds: int = 86400
+    metrics_alert_interval_seconds: int = 60
+    connection_metric_interval_seconds: int = 30
+    backend_metric_interval_seconds: int = 60
 
     @property
     def security_dir(self) -> Path:

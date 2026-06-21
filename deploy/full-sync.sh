@@ -40,6 +40,18 @@ fi
 npm run build
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${APP_ROOT}/frontend/dist"
 
+echo "==> Restarting nginx-admin (load new backend + frontend)"
+systemctl restart nginx-admin
+sleep 2
+if ! systemctl is-active --quiet nginx-admin; then
+  echo "ERROR: nginx-admin failed to start after code sync"
+  journalctl -u nginx-admin -n 30 --no-pager
+  exit 1
+fi
+curl -sf http://127.0.0.1:8080/api/health >/dev/null || {
+  echo "WARNING: backend health check failed on 127.0.0.1:8080 (HTTPS-only mode may require :8443)"
+}
+
 echo "==> Updating environment file"
 if ! grep -q '^SERVER_PUBLIC_IP=' "${ENV_FILE}"; then
   SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
@@ -89,10 +101,11 @@ echo "==> Ensuring letsencrypt dir for systemd namespace"
 mkdir -p /etc/letsencrypt/live
 chown root:root /etc/letsencrypt/live
 
-echo "==> Installing proxy debug log format"
+echo "==> Installing proxy analytics log formats"
 mkdir -p /etc/nginx/conf.d
-cp "${APP_ROOT}/deploy/nginx/proxy-debug-log.conf" /etc/nginx/conf.d/proxy-debug-log.conf
-sed -i 's/\r$//' /etc/nginx/conf.d/proxy-debug-log.conf
+rm -f /etc/nginx/conf.d/proxy-debug-log.conf
+cp "${APP_ROOT}/deploy/nginx/proxy-analytics-log.conf" /etc/nginx/conf.d/proxy-analytics-log.conf
+sed -i 's/\r$//' /etc/nginx/conf.d/proxy-analytics-log.conf
 nginx -t
 systemctl reload nginx
 

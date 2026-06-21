@@ -7,10 +7,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.models.metrics import RequestEvent
 from app.models.proxy_traffic import ProxyTrafficAggregate, ProxyTrafficLogState
 from app.schemas import ProxyTrafficHistoryPoint, ProxyTrafficStatsResponse, ProxyTrafficSummary
 from app.services.access_log_parser import parse_access_line
+from app.services.error_log_parser import classify_failed_request
 from app.services.log_reader import LogReader
+from app.services.metrics_settings_service import MetricsSettingsService
 from app.services.proxy_service import ProxyService
 
 
@@ -36,6 +39,60 @@ def _merge_count_maps(existing_json: str, incoming: dict[str, int]) -> str:
     for key, count in incoming.items():
         existing[key] = int(existing.get(key, 0)) + count
     return json.dumps(existing)
+
+
+def _merge_status_codes(existing_json: str, incoming: dict[str, int]) -> str:
+    try:
+        existing = json.loads(existing_json or "{}")
+    except json.JSONDecodeError:
+        existing = {}
+    if not isinstance(existing, dict):
+        existing = {}
+    for key, count in incoming.items():
+        existing[str(key)] = int(existing.get(str(key), 0)) + int(count)
+    return json.dumps(existing)
+
+
+def _new_bucket() -> dict:
+    return {
+        "requests": 0,
+        "bytes_in": 0,
+        "bytes_out": 0,
+        "upstream_bytes_in": 0,
+        "upstream_bytes_out": 0,
+        "latency_sum_ms": 0.0,
+        "latency_count": 0,
+        "upstream_latency_sum_ms": 0.0,
+        "upstream_latency_count": 0,
+        "max_response_time_ms": 0.0,
+        "status_2xx": 0,
+        "status_3xx": 0,
+        "status_4xx": 0,
+        "status_5xx": 0,
+        "status_codes": {},
+        "top_clients": {},
+        "top_paths": {},
+    }
+
+
+def _apply_parsed_line(totals: dict, parsed) -> None:
+    totals["requests"] += 1
+    totals["bytes_in"] += parsed.bytes_in or 0
+    totals["bytes_out"] += parsed.bytes_sent or 0
+    totals["upstream_bytes_in"] += parsed.upstream_bytes_in or 0
+    totals["upstream_bytes_out"] += parsed.upstream_bytes_out or 0
+    totals[_status_bucket(parsed.status)] += 1
+    totals["status_codes"][str(parsed.status)] = totals["status_codes"].get(str(parsed.status), 0) + 1
+    if parsed.request_time is not None:
+        latency_ms = parsed.request_time * 1000
+        totals["latency_sum_ms"] += latency_ms
+        totals["latency_count"] += 1
+        totals["max_response_time_ms"] = max(totals["max_response_time_ms"], latency_ms)
+    if parsed.upstream_response_time is not None:
+        totals["upstream_latency_sum_ms"] += parsed.upstream_response_time * 1000
+        totals["upstream_latency_count"] += 1
+    totals["top_clients"][parsed.client_ip] = totals["top_clients"].get(parsed.client_ip, 0) + 1
+    totals["top_paths"][parsed.path] = totals["top_paths"].get(parsed.path, 0) + 1
 
 
 def _weighted_avg_ms(existing_avg: float, existing_count: int, new_sum: float, new_count: int) -> float:
@@ -82,7 +139,9 @@ class ProxyTrafficService:
             state.updated_at = datetime.utcnow()
             return 0
 
-        bucket_totals: dict[datetime, dict] = {}
+        bucket_totals: dict[tuple[str, datetime], dict] = {}
+        metrics_settings = MetricsSettingsService(self.db).get_or_create()
+        sample_mod = max(metrics_settings.request_event_sample_rate, 1)
         parsed_count = 0
         for line in lines:
             parsed = parse_access_line(line)
@@ -93,57 +152,50 @@ class ProxyTrafficService:
             if ts.tzinfo is not None:
                 ts = ts.astimezone(timezone.utc).replace(tzinfo=None)
             hour_start = ts.replace(minute=0, second=0, microsecond=0)
-            totals = bucket_totals.setdefault(
-                hour_start,
-                {
-                    "requests": 0,
-                    "bytes_in": 0,
-                    "bytes_out": 0,
-                    "upstream_bytes_in": 0,
-                    "upstream_bytes_out": 0,
-                    "latency_sum_ms": 0.0,
-                    "latency_count": 0,
-                    "upstream_latency_sum_ms": 0.0,
-                    "upstream_latency_count": 0,
-                    "status_2xx": 0,
-                    "status_3xx": 0,
-                    "status_4xx": 0,
-                    "status_5xx": 0,
-                    "top_clients": {},
-                    "top_paths": {},
-                },
-            )
-            totals["requests"] += 1
-            totals["bytes_in"] += parsed.bytes_in or 0
-            totals["bytes_out"] += parsed.bytes_sent or 0
-            totals["upstream_bytes_in"] += parsed.upstream_bytes_in or 0
-            totals["upstream_bytes_out"] += parsed.upstream_bytes_out or 0
-            totals[_status_bucket(parsed.status)] += 1
-            if parsed.request_time is not None:
-                totals["latency_sum_ms"] += parsed.request_time * 1000
-                totals["latency_count"] += 1
-            if parsed.upstream_response_time is not None:
-                totals["upstream_latency_sum_ms"] += parsed.upstream_response_time * 1000
-                totals["upstream_latency_count"] += 1
-            totals["top_clients"][parsed.client_ip] = totals["top_clients"].get(parsed.client_ip, 0) + 1
-            totals["top_paths"][parsed.path] = totals["top_paths"].get(parsed.path, 0) + 1
+            minute_start = ts.replace(second=0, microsecond=0)
+            for period_type, period_start in (("hour", hour_start), ("minute", minute_start)):
+                totals = bucket_totals.setdefault((period_type, period_start), _new_bucket())
+                _apply_parsed_line(totals, parsed)
+            if parsed_count % sample_mod == 0:
+                failed, hint = classify_failed_request(parsed.status)
+                self.db.add(
+                    RequestEvent(
+                        timestamp=ts,
+                        proxy_id=proxy_id,
+                        client_ip=parsed.client_ip,
+                        host=parsed.host,
+                        method=parsed.method,
+                        uri=parsed.path,
+                        status=parsed.status,
+                        backend_addr=parsed.upstream_addr or "",
+                        response_time_ms=(parsed.request_time or 0) * 1000,
+                        upstream_time_ms=(parsed.upstream_response_time or 0) * 1000,
+                        bytes_sent=parsed.bytes_sent,
+                        user_agent=(parsed.user_agent or "")[:512],
+                        is_failed=failed,
+                        error_hint=hint or None,
+                    )
+                )
 
-        for hour_start, totals in bucket_totals.items():
-            self._upsert_aggregate(proxy_id, hour_start, totals)
+        for (period_type, period_start), totals in bucket_totals.items():
+            self._upsert_aggregate(proxy_id, period_start, totals, period_type=period_type)
 
         state.byte_offset = new_offset
         state.updated_at = datetime.utcnow()
         self.db.commit()
         return parsed_count
 
-    def _upsert_aggregate(self, proxy_id: str, hour_start: datetime, totals: dict) -> None:
-        hour_end = hour_start + timedelta(hours=1)
+    def _upsert_aggregate(
+        self, proxy_id: str, period_start: datetime, totals: dict, *, period_type: str = "hour"
+    ) -> None:
+        delta = timedelta(hours=1) if period_type == "hour" else timedelta(minutes=1)
+        period_end = period_start + delta
         existing = (
             self.db.query(ProxyTrafficAggregate)
             .filter(
                 ProxyTrafficAggregate.proxy_id == proxy_id,
-                ProxyTrafficAggregate.period_start == hour_start,
-                ProxyTrafficAggregate.period_type == "hour",
+                ProxyTrafficAggregate.period_start == period_start,
+                ProxyTrafficAggregate.period_type == period_type,
             )
             .first()
         )
@@ -166,6 +218,12 @@ class ProxyTrafficService:
             existing.status_3xx += totals["status_3xx"]
             existing.status_4xx += totals["status_4xx"]
             existing.status_5xx += totals["status_5xx"]
+            existing.max_response_time_ms = max(
+                existing.max_response_time_ms, totals.get("max_response_time_ms", 0.0)
+            )
+            existing.status_codes_json = _merge_status_codes(
+                existing.status_codes_json, totals.get("status_codes", {})
+            )
             existing.latency_avg_ms = _weighted_avg_ms(
                 existing.latency_avg_ms,
                 prev_requests,
@@ -180,15 +238,15 @@ class ProxyTrafficService:
             )
             existing.top_clients_json = _merge_count_maps(existing.top_clients_json, totals["top_clients"])
             existing.top_paths_json = _merge_count_maps(existing.top_paths_json, totals["top_paths"])
-            existing.period_end = hour_end
+            existing.period_end = period_end
             return
 
         self.db.add(
             ProxyTrafficAggregate(
                 proxy_id=proxy_id,
-                period_start=hour_start,
-                period_end=hour_end,
-                period_type="hour",
+                period_start=period_start,
+                period_end=period_end,
+                period_type=period_type,
                 requests=totals["requests"],
                 bytes_in=totals["bytes_in"],
                 bytes_out=totals["bytes_out"],
@@ -196,10 +254,12 @@ class ProxyTrafficService:
                 upstream_bytes_out=totals["upstream_bytes_out"],
                 latency_avg_ms=incoming_latency_avg,
                 upstream_latency_avg_ms=incoming_upstream_latency_avg,
+                max_response_time_ms=totals.get("max_response_time_ms", 0.0),
                 status_2xx=totals["status_2xx"],
                 status_3xx=totals["status_3xx"],
                 status_4xx=totals["status_4xx"],
                 status_5xx=totals["status_5xx"],
+                status_codes_json=json.dumps(totals.get("status_codes", {})),
                 top_clients_json=json.dumps(totals["top_clients"]),
                 top_paths_json=json.dumps(totals["top_paths"]),
             )
@@ -207,6 +267,10 @@ class ProxyTrafficService:
 
     def _range_start(self, range_key: str) -> datetime:
         now = datetime.utcnow()
+        if range_key == "15m":
+            return now - timedelta(minutes=15)
+        if range_key == "1h":
+            return now - timedelta(hours=1)
         if range_key == "7d":
             return now - timedelta(days=7)
         if range_key == "30d":
@@ -214,6 +278,10 @@ class ProxyTrafficService:
         return now - timedelta(hours=24)
 
     def _range_seconds(self, range_key: str) -> float:
+        if range_key == "15m":
+            return 15 * 60
+        if range_key == "1h":
+            return 3600
         if range_key == "7d":
             return 7 * 86400
         if range_key == "30d":

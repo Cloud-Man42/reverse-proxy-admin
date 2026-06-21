@@ -70,6 +70,7 @@ def parsed_to_response(
         upstream=parsed.upstream,
         managed=True,
         notes=metadata.get_notes(proxy_id),
+        enhanced_analytics_logging=metadata.get_enhanced_analytics_logging(proxy_id),
         rate_limit=rate_limit_response,
     )
 
@@ -202,6 +203,11 @@ class ProxyService:
             cert_path, key_path = resolve_certificate_paths(self.settings, app.domains[0], self.db)
             ssl_certificate = str(cert_path)
             ssl_certificate_key = str(key_path)
+        log_format = (
+            "proxy_json"
+            if self.metadata.get_enhanced_analytics_logging(slug)
+            else "proxy_debug"
+        )
         return self.writer.render_config(
             app,
             route_pools,
@@ -212,6 +218,7 @@ class ProxyService:
             waf_settings=waf_settings,
             ssl_certificate=ssl_certificate,
             ssl_certificate_key=ssl_certificate_key,
+            access_log_format=log_format,
         )
 
     def _validate_force_https(self, app: ProxyAppBase) -> None:
@@ -231,9 +238,12 @@ class ProxyService:
             old_notes = self.metadata.get_notes(proxy_id)
             self.metadata.delete(proxy_id)
             notes = payload.notes if payload.notes is not None else old_notes
+            enhanced = payload.enhanced_analytics_logging
             self.metadata.set_notes(payload.name, notes)
+            self.metadata.set_enhanced_analytics_logging(payload.name, enhanced)
             return
         self.metadata.set_notes(proxy_id, payload.notes)
+        self.metadata.set_enhanced_analytics_logging(proxy_id, payload.enhanced_analytics_logging)
 
     def list_proxies(self) -> list[ProxyAppResponse]:
         rate_limits = {}

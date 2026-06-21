@@ -12,6 +12,7 @@ from app.security.validators import (
     PortInt,
     SlugStr,
     SmtpSenderEmailStr,
+    TimeoutStr,
     validate_header_name,
     validate_header_value,
 )
@@ -135,7 +136,13 @@ class ProxyAppBase(BaseModel):
     force_https: bool = False
     enabled: bool = True
     notes: Optional[str] = None
+    enhanced_analytics_logging: bool = False
     rate_limit: Optional[ProxyRateLimitUpdate] = None
+    proxy_read_timeout: Optional[TimeoutStr] = None
+    proxy_send_timeout: Optional[TimeoutStr] = None
+    proxy_connect_timeout: Optional[TimeoutStr] = None
+    hsts_enabled: bool = False
+    security_headers: List[CustomHeader] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -216,7 +223,13 @@ class ProxyAppResponse(BaseModel):
     upstream: str
     managed: bool = True
     notes: Optional[str] = None
+    enhanced_analytics_logging: bool = False
     rate_limit: Optional[ProxyRateLimitResponse] = None
+    proxy_read_timeout: Optional[str] = None
+    proxy_send_timeout: Optional[str] = None
+    proxy_connect_timeout: Optional[str] = None
+    hsts_enabled: bool = False
+    security_headers: List[CustomHeader] = Field(default_factory=list)
 
 
 class NginxTestResult(BaseModel):
@@ -779,6 +792,18 @@ class ProxyTemplateResponse(BaseModel):
     description: Optional[str] = None
     defaults: dict = Field(default_factory=dict)
     builtin: bool
+    group: Optional[str] = None
+    category: Optional[str] = None
+    icon: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    availability_level: Optional[str] = None
+    optimized: bool = False
+    default_upstream_protocol: Optional[str] = None
+    default_upstream_port: Optional[int] = None
+    websocket_support: bool = False
+    large_upload_support: bool = False
+    https_upstream_supported: bool = False
+    documentation_url: Optional[str] = None
 
 
 class ConfigVersionResponse(BaseModel):
@@ -964,6 +989,12 @@ class ProxyWafSettingsUpdate(ProxyWafSettingsBase):
 
 class ProxyWafSettingsResponse(ProxyWafSettingsBase):
     proxy_id: str
+
+
+class WafPlatformStatusResponse(BaseModel):
+    modsecurity_ready: bool
+    crs_base_path: str = "/etc/nginx/modsecurity/crs-base.conf"
+    setup_script: str = "deploy/setup-modsecurity.sh"
 
 
 class SecurityEventResponse(BaseModel):

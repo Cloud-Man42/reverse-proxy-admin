@@ -16,6 +16,7 @@ from app.schemas import (
     MessageResponse,
     ProxyWafSettingsResponse,
     ProxyWafSettingsUpdate,
+    WafPlatformStatusResponse,
     SecurityEventListResponse,
     ThreatFeedCreate,
     ThreatFeedResponse,
@@ -342,6 +343,16 @@ async def sync_threat_feed(
     return feed
 
 
+@router.get("/waf/status", response_model=WafPlatformStatusResponse)
+async def waf_platform_status(
+    settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_permission(Permission.READ)),
+) -> WafPlatformStatusResponse:
+    service = WafService(settings, db)
+    return WafPlatformStatusResponse(modsecurity_ready=service.modsecurity_ready())
+
+
 @router.get("/waf/{proxy_id}", response_model=ProxyWafSettingsResponse)
 async def get_waf_settings(
     proxy_id: str,
@@ -361,7 +372,13 @@ async def update_waf_settings(
     settings: Settings = Depends(get_settings),
     user: User = Depends(require_permission(Permission.EDIT)),
 ) -> ProxyWafSettingsResponse:
-    result = WafService(settings, db).upsert(proxy_id, payload)
+    service = WafService(settings, db)
+    if payload.enabled and not service.modsecurity_ready():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ModSecurity is not installed on this server. Run: sudo bash deploy/setup-modsecurity.sh",
+        )
+    result = service.upsert(proxy_id, payload)
     _regen_proxies(settings, db, [proxy_id])
     SecurityEventService(db).log(
         event_type="waf_updated",

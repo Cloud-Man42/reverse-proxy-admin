@@ -5,10 +5,12 @@ Production-ready web administration tool for managing Nginx reverse proxy config
 ## Documentation
 
 - **[Proxy Setup Manual](docs/PROXY_SETUP_MANUAL.md)** — complete guide to creating proxies in the Admin UI, traffic flow, HTTPS, and troubleshooting
+- **[Application Catalog](docs/APPLICATION_CATALOG.md)** — YAML template schema, API, wizard flow, and contributor guide
 
 ## Features
 
 - Manage reverse proxy apps (create, edit, delete, enable/disable)
+- **Application Catalog** with 100+ YAML-backed templates, group browsing, search/filters, and a 7-step setup wizard
 - **Enterprise load balancing** with backend pools, weighted servers, and active/passive failover
 - **Backend health monitoring** with TCP/HTTP/HTTPS checks, uptime history, and dashboard widgets
 - **SMTP notifications** with encrypted credentials and configurable alert recipients
@@ -16,10 +18,13 @@ Production-ready web administration tool for managing Nginx reverse proxy config
 - Safe config workflow: backup before write, `nginx -t` before reload, automatic rollback on failure
 - Certificate management via Certbot
 - Error/access log viewer with domain filter
+- **Enterprise observability**: metrics dashboard, traffic/status-code analytics, live & failed request views, metric alert rules, retention settings
 - Session authentication with Argon2, CSRF protection, login rate limiting, IP allowlist
 - Audit log for all mutating actions
 
 See [Enterprise Features](docs/ENTERPRISE_FEATURES.md) for load balancing, health checks, SMTP, and alerting details.
+
+See [Observability](docs/OBSERVABILITY.md) for metrics collection, stub_status, enhanced logging, retention, and alert rules.
 
 See [Roadmap](docs/ROADMAP.md) for V1–V4 feature status.
 

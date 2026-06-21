@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import analytics, api_tokens, auth, backend_pools, certificates, config_versions, health_checks, logs, notifications, organizations, proxies, security, smtp, status_reports, system, system_alerts, templates, users
+from app.api import analytics, api_tokens, auth, backend_pools, certificates, config_versions, health_checks, logs, metrics, notifications, organizations, proxies, security, smtp, status_reports, system, system_alerts, templates, users
 from app.api.v1 import router as v1_router
 from app.config import get_settings
 from app.db import SessionLocal, init_db
@@ -113,6 +113,7 @@ app.include_router(health_checks.router, prefix="/api")
 app.include_router(smtp.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(status_reports.router, prefix="/api")
+app.include_router(metrics.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(system_alerts.router, prefix="/api")
 app.include_router(certificates.router, prefix="/api")

@@ -14,6 +14,14 @@ from app.models.proxy_waf_settings import ProxyWafSettings
 from app.models.security_event import SecurityEvent
 from app.models.threat_feed import ThreatFeed
 from app.models.proxy_template import ProxyTemplate
+from app.models.metrics import (
+    BackendMetric,
+    ConnectionMetric,
+    MetricAlertHistory,
+    MetricAlertRule,
+    MetricsSettings,
+    RequestEvent,
+)
 from app.models.proxy_traffic import ProxyTrafficAggregate, ProxyTrafficLogState
 from app.models.session import UserSession
 from app.models.smtp_settings import SmtpSettings
@@ -40,6 +48,12 @@ __all__ = [
     "NotificationLog",
     "ProxyTrafficAggregate",
     "ProxyTrafficLogState",
+    "BackendMetric",
+    "ConnectionMetric",
+    "RequestEvent",
+    "MetricAlertRule",
+    "MetricAlertHistory",
+    "MetricsSettings",
     "ProxyRateLimit",
     "IpAccessRule",
     "GeoRule",

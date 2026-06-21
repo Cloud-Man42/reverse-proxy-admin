@@ -24,6 +24,7 @@ const baseForm: ProxyFormData = {
   force_https: false,
   enabled: true,
   notes: "",
+  enhanced_analytics_logging: false,
   rate_limit: defaultRateLimit(),
 };
 

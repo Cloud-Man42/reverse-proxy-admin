@@ -20,6 +20,7 @@ export function toPayload(form: ProxyFormData) {
     force_https: form.force_https,
     enabled: form.enabled,
     notes: form.notes.trim() || null,
+    enhanced_analytics_logging: form.enhanced_analytics_logging,
     rate_limit: form.rate_limit,
   };
 }

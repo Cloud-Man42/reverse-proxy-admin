@@ -152,6 +152,7 @@ export interface ProxyApp {
   upstream: string;
   managed: boolean;
   notes?: string | null;
+  enhanced_analytics_logging?: boolean;
   rate_limit?: ProxyRateLimitSettings | null;
 }
 
@@ -526,6 +527,7 @@ export interface ProxyFormData {
   force_https: boolean;
   enabled: boolean;
   notes: string;
+  enhanced_analytics_logging: boolean;
   rate_limit: ProxyRateLimitSettings;
 }
 
@@ -650,6 +652,12 @@ export interface ProxyWafSettings {
   exclusions: string[];
 }
 
+export interface WafPlatformStatus {
+  modsecurity_ready: boolean;
+  crs_base_path: string;
+  setup_script: string;
+}
+
 export interface SecurityEvent {
   id: number;
   event_type: string;
@@ -665,4 +673,344 @@ export interface SecurityEventList {
   total: number;
   page: number;
   page_size: number;
+}
+
+export type MetricsRange = "15m" | "1h" | "24h" | "7d" | "30d";
+
+export interface MetricsSeriesPoint {
+  timestamp: string;
+  value: number;
+}
+
+export interface MetricsDashboardResponse {
+  system_health: {
+    nginx_status: string;
+    health_check_service: string;
+    smtp_status: string;
+    ssl_certbot_status: string;
+    background_worker_status: string;
+    cpu_percent?: number | null;
+    ram_percent?: number | null;
+    disk_percent?: number | null;
+  };
+  proxy_overview: {
+    total: number;
+    active: number;
+    disabled: number;
+    total_backends: number;
+    healthy_backends: number;
+    warning_backends: number;
+    offline_backends: number;
+  };
+  live_traffic: {
+    requests_per_second: number;
+    active_connections: number;
+    bandwidth_in: number;
+    bandwidth_out: number;
+    avg_response_time_ms: number;
+    error_rate_percent: number;
+  };
+  ssl_overview: {
+    total: number;
+    valid: number;
+    expiring: number;
+    expired: number;
+    renewal_errors: number;
+  };
+  alerts: Array<{
+    source: string;
+    title: string;
+    message?: string | null;
+    status: string;
+    severity: string;
+    created_at: string;
+  }>;
+  traffic_history: Array<{
+    timestamp: string;
+    requests: number;
+    bytes_in: number;
+    bytes_out: number;
+  }>;
+  range: string;
+}
+
+export interface MetricsTrafficResponse {
+  range: string;
+  totals: {
+    requests: number;
+    bytes_in: number;
+    bytes_out: number;
+    avg_response_time_ms: number;
+    error_rate: number;
+    rps: number;
+  };
+  peak_rps: number;
+  series: {
+    requests: MetricsSeriesPoint[];
+    bandwidth_in: MetricsSeriesPoint[];
+    bandwidth_out: MetricsSeriesPoint[];
+    response_time_ms: MetricsSeriesPoint[];
+    error_rate: MetricsSeriesPoint[];
+  };
+}
+
+export interface MetricsStatusCodesResponse {
+  range: string;
+  groups: Record<string, number>;
+  specific: Record<string, number>;
+  hints: Array<{ code: string; hint: string }>;
+  top_errors: Array<[string, number]>;
+}
+
+export interface MetricsProxyHostItem {
+  proxy_id: string;
+  domains: string[];
+  requests: number;
+  bandwidth: number;
+  error_count: number;
+  error_rate: number;
+  avg_response_time_ms: number;
+  active_connections: number;
+  backend_pool_status: string;
+  enabled: boolean;
+}
+
+export interface MetricsClientIpItem {
+  client_ip: string;
+  requests: number;
+  bandwidth: number;
+  errors: number;
+  last_seen?: string;
+  user_agent?: string;
+}
+
+export interface MetricsBackendItem {
+  backend_server_id: number;
+  name: string;
+  host: string;
+  port: number;
+  protocol: string;
+  status: string;
+  response_time_ms: number;
+  uptime_percent_24h: number;
+  history: Array<{
+    timestamp: string;
+    response_time_ms?: number | null;
+    status?: string;
+    errors?: number;
+  }>;
+}
+
+export interface MetricsConnectionsResponse {
+  range: string;
+  latest: Record<string, number>;
+  series: Array<{
+    timestamp: string;
+    active: number;
+    reading: number;
+    writing: number;
+    waiting: number;
+  }>;
+}
+
+export interface MetricsSslResponse {
+  total: number;
+  valid: number;
+  expiring_soon: number;
+  expired: number;
+  items: Array<{
+    domain: string;
+    status: string;
+    days_remaining: number;
+    issuer: string;
+    expires_at: string;
+  }>;
+}
+
+export interface MetricsSecurityResponse {
+  range: string;
+  total_events: number;
+  failed_logins: number;
+  rate_limited: number;
+  blocked_ips: number;
+  top_blocked_ips: Array<[string, number]>;
+  recent_events: SecurityEvent[];
+}
+
+export interface RequestEventItem {
+  timestamp: string;
+  client_ip: string;
+  host: string;
+  uri: string;
+  method: string;
+  status: number;
+  backend_addr?: string | null;
+  response_time_ms?: number | null;
+  upstream_time_ms?: number | null;
+  bytes_sent: number;
+  user_agent?: string | null;
+}
+
+export interface PaginatedRequestEvents {
+  total: number;
+  page: number;
+  page_size: number;
+  items: RequestEventItem[];
+}
+
+export interface MetricAlertRule {
+  id: number;
+  name: string;
+  enabled: boolean;
+  severity: string;
+  metric_type: string;
+  condition: string;
+  threshold: number;
+  window_minutes: number;
+  proxy_id?: string | null;
+  notify_email: boolean;
+}
+
+export interface MetricAlertHistoryItem {
+  id: number;
+  rule_id?: number | null;
+  alert_type: string;
+  severity: string;
+  status: string;
+  message: string;
+  metric_value?: number | null;
+  created_at: string;
+}
+
+export interface MetricAlertsResponse {
+  rules: MetricAlertRule[];
+  history: MetricAlertHistoryItem[];
+}
+
+export interface MetricsSettings {
+  raw_retention_days: number;
+  minute_retention_days: number;
+  hour_retention_days: number;
+  stub_status_url: string;
+  enhanced_logging_default: boolean;
+  request_event_sample_rate: number;
+}
+
+export type TemplateAvailabilityLevel = "free" | "pro" | "enterprise";
+
+export interface TemplateHeader {
+  name: string;
+  value: string;
+}
+
+export interface ApplicationTemplate extends ProxyTemplate {
+  group: string;
+  category: string;
+  icon: string;
+  tags: string[];
+  availability_level: TemplateAvailabilityLevel;
+  optimized: boolean;
+  default_upstream_protocol: string;
+  default_upstream_port: number;
+  websocket_support: boolean;
+  large_upload_support: boolean;
+  recommended_client_max_body_size?: string | null;
+  recommended_proxy_read_timeout?: string | null;
+  recommended_proxy_send_timeout?: string | null;
+  recommended_proxy_connect_timeout?: string | null;
+  https_upstream_supported: boolean;
+  http_to_https_redirect_default: boolean;
+  recommended_headers: TemplateHeader[];
+  security_headers: TemplateHeader[];
+  health_check_path?: string | null;
+  rate_limit_recommendation?: string | null;
+  security_notes?: string | null;
+  documentation_url?: string | null;
+  long_description?: string | null;
+  slug_aliases: string[];
+  hsts_recommended: boolean;
+}
+
+export interface TemplateGroup {
+  slug: string;
+  name: string;
+  description: string;
+  icon: string;
+  sort_order: number;
+  template_count: number;
+}
+
+export interface TemplateListResponse {
+  items: ApplicationTemplate[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface CatalogFilters {
+  q?: string;
+  group?: string;
+  tag?: string;
+  availability_level?: TemplateAvailabilityLevel;
+  optimized?: boolean;
+  websocket?: boolean;
+  large_upload?: boolean;
+  https_upstream?: boolean;
+  page?: number;
+  page_size?: number;
+}
+
+export interface TemplatePreviewRequest {
+  domain: string;
+  upstream_host?: string;
+  upstream_port?: number;
+  upstream_protocol?: string;
+  name?: string;
+  websocket_enabled?: boolean;
+  force_https?: boolean;
+  large_upload_enabled?: boolean;
+  max_body_size?: string;
+  proxy_read_timeout?: string;
+  proxy_send_timeout?: string;
+  proxy_connect_timeout?: string;
+  hsts_enabled?: boolean;
+  apply_recommended_headers?: boolean;
+  apply_security_headers?: boolean;
+}
+
+export interface TemplatePreviewResponse {
+  rendered_config: string;
+  resolved_payload: Record<string, unknown>;
+  warnings: string[];
+}
+
+export interface TemplateCreateProxyRequest extends TemplatePreviewRequest {
+  name: string;
+  enabled?: boolean;
+}
+
+export interface TemplateCreateProxyResponse {
+  success: boolean;
+  message: string;
+  proxy?: Record<string, unknown> | null;
+  failure_stage?: string | null;
+}
+
+export interface TemplateWizardState {
+  domain: string;
+  upstream_host: string;
+  upstream_port: number;
+  upstream_protocol: "http" | "https";
+  name: string;
+  websocket_enabled: boolean;
+  force_https: boolean;
+  large_upload_enabled: boolean;
+  max_body_size: string;
+  hsts_enabled: boolean;
+  apply_recommended_headers: boolean;
+  apply_security_headers: boolean;
+  proxy_read_timeout: string;
+  proxy_send_timeout: string;
+  proxy_connect_timeout: string;
+  enabled: boolean;
 }

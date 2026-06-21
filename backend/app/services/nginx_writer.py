@@ -19,6 +19,16 @@ from app.services.load_balancer_service import LoadBalancerService
 from app.services.path_guard import ensure_path_allowed, safe_join
 
 
+PROXY_JSON_LOG_FORMAT = (
+    "log_format proxy_json escape=json "
+    "'{\"time\":\"$time_iso8601\",\"remote_addr\":\"$remote_addr\",\"host\":\"$host\","
+    "\"request_method\":\"$request_method\",\"request_uri\":\"$request_uri\",\"status\":$status,"
+    "\"body_bytes_sent\":$body_bytes_sent,\"request_time\":$request_time,"
+    "\"upstream_response_time\":\"$upstream_response_time\",\"upstream_addr\":\"$upstream_addr\","
+    "\"http_user_agent\":\"$http_user_agent\"}';"
+)
+
+
 PROXY_DEBUG_LOG_FORMAT = (
     "log_format proxy_debug "
     "'$remote_addr|$time_local|$host|$request|$status|$body_bytes_sent|"
@@ -44,7 +54,7 @@ include {{ threat_feed_include }};
 server {
     listen 80;
     server_name {{ app.domains | join(' ') }};
-    access_log /var/log/nginx/proxy-{{ app.name }}.log proxy_debug;
+    access_log /var/log/nginx/proxy-{{ app.name }}.log {{ access_log_format }};
     return 301 https://$host$request_uri;
 }
 
@@ -60,7 +70,7 @@ server {
     listen 80;
 {% endif -%}
     server_name {{ app.domains | join(' ') }};
-    access_log /var/log/nginx/proxy-{{ app.name }}.log proxy_debug;
+    access_log /var/log/nginx/proxy-{{ app.name }}.log {{ access_log_format }};
 
 {% if app.max_body_size -%}
     client_max_body_size {{ app.max_body_size }};
@@ -79,6 +89,12 @@ server {
     modsecurity on;
     modsecurity_rules_file {{ waf_include }};
 {% endif -%}
+{% if app.hsts_enabled and app.force_https -%}
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+{% endif -%}
+{% for header in app.security_headers -%}
+    add_header {{ header.name }} {{ header.value }};
+{% endfor -%}
 {% for route in routes -%}
     location {{ route.location }} {
 {% if rate_limit_zone -%}
@@ -91,6 +107,15 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+{% if app.proxy_connect_timeout -%}
+        proxy_connect_timeout {{ app.proxy_connect_timeout }};
+{% endif -%}
+{% if app.proxy_send_timeout -%}
+        proxy_send_timeout {{ app.proxy_send_timeout }};
+{% endif -%}
+{% if app.proxy_read_timeout -%}
+        proxy_read_timeout {{ app.proxy_read_timeout }};
+{% endif -%}
 {% if route.websocket_enabled -%}
 
         proxy_http_version 1.1;
@@ -280,6 +305,7 @@ class NginxWriter:
         waf_settings: Optional[ProxyWafSettings] = None,
         ssl_certificate: Optional[str] = None,
         ssl_certificate_key: Optional[str] = None,
+        access_log_format: str = "proxy_debug",
     ) -> str:
         route_pools = route_pools or {}
         slug = proxy_slug or app.name
@@ -297,6 +323,7 @@ class NginxWriter:
             htpasswd_path=str(htpasswd_path),
             ssl_certificate=ssl_certificate,
             ssl_certificate_key=ssl_certificate_key,
+            access_log_format=access_log_format,
             **self.render_rate_limit(slug, rate_limit),
             **self.render_security_includes(
                 slug,

@@ -34,8 +34,20 @@
 - [x] **4.5** Security events dashboard
 - [x] **4.6** Audit export (CSV/JSON) and Security events export
 
-## Future (post-V4)
+## V5 — Observability platform ✅
 
+- [x] Minute/hour traffic aggregates with status-code JSON
+- [x] Request event sampling (live & failed request views)
+- [x] NGINX stub_status connection metrics
+- [x] Backend metric history
+- [x] `/api/metrics/*`, live/failed requests, metric alert CRUD
+- [x] Retention cleanup job and metrics settings UI
+- [x] Enhanced JSON access logging (`proxy_json`) per proxy
+- [x] Analytics & observability UI pages
+
+## Future (post-V5)
+
+- [x] **Application Catalog** — YAML templates, groups, search/filters, wizard, preview/create-proxy API
 - [ ] Nginx log ingestion for live rate-limit/geo/WAF block events
 - [ ] Automated ModSecurity CRS profile tuning
 - [ ] GeoIP database auto-update cron

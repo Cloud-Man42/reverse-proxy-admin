@@ -80,12 +80,12 @@ function ServerFields({
       <input className="rounded bg-black/20 px-2 py-1 text-sm" placeholder="Name" value={server.name} onChange={(e) => onChange(index, { name: e.target.value })} />
       <input className="rounded bg-black/20 px-2 py-1 text-sm" placeholder="IP" value={server.host} onChange={(e) => onChange(index, { host: e.target.value })} />
       <input type="number" className="rounded bg-black/20 px-2 py-1 text-sm" placeholder="Port" value={server.port} onChange={(e) => onChange(index, { port: Number(e.target.value) })} />
-      <select className="rounded bg-black/20 px-2 py-1 text-sm" value={server.role} onChange={(e) => onChange(index, { role: e.target.value as BackendServerFormData["role"] })}>
+      <select className="w-auto px-2 py-1 text-sm" value={server.role} onChange={(e) => onChange(index, { role: e.target.value as BackendServerFormData["role"] })}>
         <option value="primary">Primary</option>
         <option value="backup">Backup</option>
       </select>
       <input type="number" className="rounded bg-black/20 px-2 py-1 text-sm" placeholder="Weight" value={server.weight} onChange={(e) => onChange(index, { weight: Number(e.target.value) })} />
-      <select className="rounded bg-black/20 px-2 py-1 text-sm" value={server.health_check_type} onChange={(e) => onChange(index, { health_check_type: e.target.value as BackendServerFormData["health_check_type"] })}>
+      <select className="w-auto px-2 py-1 text-sm" value={server.health_check_type} onChange={(e) => onChange(index, { health_check_type: e.target.value as BackendServerFormData["health_check_type"] })}>
         <option value="tcp">TCP</option>
         <option value="http">HTTP</option>
         <option value="https">HTTPS</option>

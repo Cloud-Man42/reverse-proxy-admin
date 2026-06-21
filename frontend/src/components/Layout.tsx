@@ -9,18 +9,23 @@ const links = [
   { to: "/templates", label: "Templates" },
   { to: "/backend-pools", label: "Backend Pools" },
   { to: "/health", label: "Health" },
-  { to: "/analytics", label: "Analytics" },
+  { to: "/analytics/traffic", label: "Analytics" },
+  { to: "/observability/live", label: "Live Requests" },
+  { to: "/alerts", label: "Alerts" },
   { to: "/certificates", label: "Certificates" },
   { to: "/logs", label: "Logs" },
   { to: "/system", label: "System" },
   { to: "/settings", label: "Settings", adminOnly: true },
+  { to: "/settings/metrics", label: "Metrics", adminOnly: true },
   { to: "/security", label: "Security", adminOnly: true },
+  { to: "/security/overview", label: "Security Overview", adminOnly: true },
   { to: "/audit", label: "Audit", adminOnly: true },
   { to: "/api-tokens", label: "API Tokens", adminOnly: true },
   { to: "/about", label: "About" },
   { to: "/users", label: "Users", adminOnly: true },
   { to: "/tenants", label: "Tenants", superAdminOnly: true },
 ];
+
 export function Layout() {
   const { username, logout, isAdmin, isSuperAdmin } = useAuth();
   const { dark, toggle } = useTheme();

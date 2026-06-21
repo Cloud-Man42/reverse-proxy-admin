@@ -25,6 +25,8 @@ class ProxyTrafficAggregate(Base):
     status_3xx: Mapped[int] = mapped_column(Integer, default=0)
     status_4xx: Mapped[int] = mapped_column(Integer, default=0)
     status_5xx: Mapped[int] = mapped_column(Integer, default=0)
+    max_response_time_ms: Mapped[float] = mapped_column(Float, default=0.0)
+    status_codes_json: Mapped[str] = mapped_column(Text, default="{}")
     top_clients_json: Mapped[str] = mapped_column(Text, default="{}")
     top_paths_json: Mapped[str] = mapped_column(Text, default="{}")
 

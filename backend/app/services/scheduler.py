@@ -10,6 +10,11 @@ from app.services.ssl_alert_service import SslAlertService
 from app.services.status_report_service import StatusReportService
 from app.services.system_monitor_service import SystemMonitorService
 from app.services.threat_feed_service import ThreatFeedService
+from app.services.metrics_collector_service import (
+    BackendMetricCollector,
+    ConnectionMetricService,
+    MetricsRetentionService,
+)
 
 _scheduler: BackgroundScheduler | None = None
 
@@ -67,6 +72,48 @@ def _run_status_reports(settings: Settings) -> None:
     db = SessionLocal()
     try:
         StatusReportService(settings, db).maybe_send_scheduled()
+    finally:
+        db.close()
+
+
+def _run_metrics_retention(settings: Settings) -> None:
+    db = SessionLocal()
+    try:
+        MetricsRetentionService(db).cleanup()
+    finally:
+        db.close()
+
+
+def _run_connection_metrics(settings: Settings) -> None:
+    db = SessionLocal()
+    try:
+        ConnectionMetricService(settings, db).collect()
+    finally:
+        db.close()
+
+
+def _run_backend_metrics(settings: Settings) -> None:
+    db = SessionLocal()
+    try:
+        BackendMetricCollector(settings, db).collect()
+    finally:
+        db.close()
+
+
+def _run_daily_traffic_rollup(settings: Settings) -> None:
+    db = SessionLocal()
+    try:
+        ProxyTrafficService(settings, db).rollup_daily()
+    finally:
+        db.close()
+
+
+def _run_metric_alerts(settings: Settings) -> None:
+    db = SessionLocal()
+    try:
+        from app.services.alert_rule_service import AlertRuleService
+
+        AlertRuleService(settings, db).evaluate_all()
     finally:
         db.close()
 
@@ -138,6 +185,41 @@ def start_scheduler(settings: Settings) -> BackgroundScheduler:
         IntervalTrigger(seconds=settings.threat_feed_sync_interval_seconds),
         args=[settings],
         id="threat_feed_sync",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_connection_metrics,
+        IntervalTrigger(seconds=settings.connection_metric_interval_seconds),
+        args=[settings],
+        id="connection_metrics",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_backend_metrics,
+        IntervalTrigger(seconds=settings.backend_metric_interval_seconds),
+        args=[settings],
+        id="backend_metrics",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_metrics_retention,
+        IntervalTrigger(seconds=settings.metrics_retention_interval_seconds),
+        args=[settings],
+        id="metrics_retention",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_daily_traffic_rollup,
+        IntervalTrigger(hours=24),
+        args=[settings],
+        id="traffic_daily_rollup",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_metric_alerts,
+        IntervalTrigger(seconds=settings.metrics_alert_interval_seconds),
+        args=[settings],
+        id="metric_alerts",
         replace_existing=True,
     )
     scheduler.start()

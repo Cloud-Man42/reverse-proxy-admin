@@ -230,8 +230,34 @@ export const api = {
     }),
   sendStatusReport: () =>
     request<import("../types").MessageResponse>("/api/status-reports/send", { method: "POST" }),
-  listTemplates: () => request<import("../types").ProxyTemplate[]>("/api/templates"),
-  getTemplate: (slug: string) => request<import("../types").ProxyTemplate>(`/api/templates/${slug}`),
+  listTemplates: () => request<import("../types").ProxyTemplate[]>("/api/templates/legacy"),
+  listTemplateGroups: () => request<import("../types").TemplateGroup[]>("/api/templates/groups"),
+  listCatalogTemplates: (filters: import("../types").CatalogFilters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.q) params.set("q", filters.q);
+    if (filters.group) params.set("group", filters.group);
+    if (filters.tag) params.set("tag", filters.tag);
+    if (filters.availability_level) params.set("availability_level", filters.availability_level);
+    if (filters.optimized !== undefined) params.set("optimized", String(filters.optimized));
+    if (filters.websocket !== undefined) params.set("websocket", String(filters.websocket));
+    if (filters.large_upload !== undefined) params.set("large_upload", String(filters.large_upload));
+    if (filters.https_upstream !== undefined) params.set("https_upstream", String(filters.https_upstream));
+    if (filters.page) params.set("page", String(filters.page));
+    if (filters.page_size) params.set("page_size", String(filters.page_size));
+    const query = params.toString();
+    return request<import("../types").TemplateListResponse>(`/api/templates${query ? `?${query}` : ""}`);
+  },
+  getTemplate: (slug: string) => request<import("../types").ApplicationTemplate>(`/api/templates/${slug}`),
+  previewTemplate: (slug: string, payload: import("../types").TemplatePreviewRequest) =>
+    request<import("../types").TemplatePreviewResponse>(`/api/templates/${slug}/preview`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  createProxyFromTemplate: (slug: string, payload: import("../types").TemplateCreateProxyRequest) =>
+    request<import("../types").TemplateCreateProxyResponse>(`/api/templates/${slug}/create-proxy`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   listConfigVersions: (resourceType?: string, resourceId?: string) => {
     const params = new URLSearchParams();
     if (resourceType) params.set("resource_type", resourceType);
@@ -304,6 +330,8 @@ export const api = {
     request<import("../types").ThreatFeed>(`/api/security/threat-feeds/${id}/sync`, { method: "POST" }),
   getWafSettings: (proxyId: string) =>
     request<import("../types").ProxyWafSettings>(`/api/security/waf/${proxyId}`),
+  getWafPlatformStatus: () =>
+    request<import("../types").WafPlatformStatus>("/api/security/waf/status"),
   updateWafSettings: (proxyId: string, payload: unknown) =>
     request<import("../types").ProxyWafSettings>(`/api/security/waf/${proxyId}`, {
       method: "PUT",
@@ -321,4 +349,46 @@ export const api = {
     if (resource) params.set("resource", resource);
     return request<import("../types").AuditLogList>(`/api/audit?${params.toString()}`);
   },
+  metricsDashboard: () => request<import("../types").MetricsDashboardResponse>("/api/metrics/dashboard"),
+  metricsTraffic: (range = "24h") =>
+    request<import("../types").MetricsTrafficResponse>(`/api/metrics/traffic?range=${range}`),
+  metricsStatusCodes: (range = "24h", proxyId?: string) => {
+    const params = new URLSearchParams({ range });
+    if (proxyId) params.set("proxy_id", proxyId);
+    return request<import("../types").MetricsStatusCodesResponse>(`/api/metrics/status-codes?${params.toString()}`);
+  },
+  metricsProxyHosts: (range = "24h", sortBy = "requests") =>
+    request<{ range: string; items: import("../types").MetricsProxyHostItem[] }>(
+      `/api/metrics/proxy-hosts?range=${range}&sort_by=${sortBy}`
+    ),
+  metricsClientIps: (range = "24h", limit = 50) =>
+    request<{ range: string; items: import("../types").MetricsClientIpItem[] }>(
+      `/api/metrics/client-ips?range=${range}&limit=${limit}`
+    ),
+  metricsBackends: (range = "24h") =>
+    request<{ range: string; items: import("../types").MetricsBackendItem[] }>(`/api/metrics/backends?range=${range}`),
+  metricsConnections: (range = "24h") =>
+    request<import("../types").MetricsConnectionsResponse>(`/api/metrics/connections?range=${range}`),
+  metricsSsl: () => request<import("../types").MetricsSslResponse>("/api/metrics/ssl"),
+  metricsSecurity: (range = "24h") =>
+    request<import("../types").MetricsSecurityResponse>(`/api/metrics/security?range=${range}`),
+  liveRequests: (params: URLSearchParams) =>
+    request<import("../types").PaginatedRequestEvents>(`/api/live-requests?${params.toString()}`),
+  failedRequests: (page = 1, pageSize = 100) =>
+    request<import("../types").PaginatedRequestEvents>(
+      `/api/failed-requests?page=${page}&page_size=${pageSize}`
+    ),
+  listMetricAlerts: () => request<import("../types").MetricAlertsResponse>("/api/alerts"),
+  createMetricAlert: (payload: unknown) =>
+    request<{ id: number; name: string }>("/api/alerts", { method: "POST", body: JSON.stringify(payload) }),
+  updateMetricAlert: (id: number, payload: unknown) =>
+    request<{ id: number; name: string }>(`/api/alerts/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteMetricAlert: (id: number) =>
+    request<import("../types").MessageResponse>(`/api/alerts/${id}`, { method: "DELETE" }),
+  getMetricsSettings: () => request<import("../types").MetricsSettings>("/api/metrics/settings"),
+  updateMetricsSettings: (payload: unknown) =>
+    request<import("../types").MetricsSettings>("/api/metrics/settings", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
 };

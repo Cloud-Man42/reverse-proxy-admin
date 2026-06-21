@@ -1,0 +1,85 @@
+- slug: infrastructure-virtualization
+  name: Infrastructure & Virtualization
+  description: Hypervisors, container platforms, and infrastructure management UIs.
+  icon: server
+  sort_order: 10
+- slug: monitoring-observability
+  name: Monitoring & Observability
+  description: Metrics, logs, tracing, and uptime monitoring platforms.
+  icon: activity
+  sort_order: 20
+- slug: identity-authentication
+  name: Identity & Authentication
+  description: SSO, identity providers, and directory administration tools.
+  icon: shield
+  sort_order: 30
+- slug: web-hosting-control-panels
+  name: Web Hosting & Control Panels
+  description: Shared hosting and server control panel applications.
+  icon: layout
+  sort_order: 40
+- slug: collaboration-communication
+  name: Collaboration & Communication
+  description: Chat, video conferencing, and mail platforms.
+  icon: message-circle
+  sort_order: 50
+- slug: source-control-devops
+  name: Source Control & DevOps
+  description: Git hosting, CI/CD, and artifact repositories.
+  icon: git-branch
+  sort_order: 60
+- slug: storage-backup
+  name: Storage & Backup
+  description: Object storage, NAS dashboards, and backup systems.
+  icon: database
+  sort_order: 70
+- slug: self-hosted-productivity
+  name: Self-Hosted Productivity
+  description: Document management, wikis, and file sync platforms.
+  icon: file-text
+  sort_order: 80
+- slug: media-entertainment
+  name: Media & Entertainment
+  description: Media servers and content automation stacks.
+  icon: film
+  sort_order: 90
+- slug: smart-home-iot
+  name: Smart Home & IoT
+  description: Home automation and IoT messaging platforms.
+  icon: home
+  sort_order: 100
+- slug: ai-llm-platforms
+  name: AI & LLM Platforms
+  description: Self-hosted AI chat and inference interfaces.
+  icon: cpu
+  sort_order: 110
+- slug: security
+  name: Security
+  description: Password managers and security monitoring platforms.
+  icon: lock
+  sort_order: 120
+- slug: business-applications
+  name: Business Applications
+  description: CRM, ERP, and service desk applications.
+  icon: briefcase
+  sort_order: 130
+- slug: databases
+  name: Databases
+  description: Web administration tools for common databases.
+  icon: table
+  sort_order: 140
+- slug: networking
+  name: Networking
+  description: DNS, VPN, and network controller dashboards.
+  icon: globe
+  sort_order: 150
+- slug: developer-tools
+  name: Developer Tools
+  description: API clients, documentation, and developer portals.
+  icon: code
+  sort_order: 160
+- slug: general
+  name: General
+  description: Blank and common web application starting points.
+  icon: box
+  sort_order: 170

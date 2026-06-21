@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
 
+from app.services.error_log_parser import parse_proxy_json_line
+
 COMBINED_RE = re.compile(
     r'^(\S+) \S+ \S+ \[([^\]]+)\] "([^"]+)" (\d+) (\d+) "([^"]*)" "([^"]*)"'
 )
@@ -28,6 +30,7 @@ class ParsedAccessEntry:
     user_agent: Optional[str] = None
     request_time: Optional[float] = None
     upstream_response_time: Optional[float] = None
+    upstream_addr: Optional[str] = None
 
     @property
     def timestamp(self) -> Optional[datetime]:
@@ -55,10 +58,39 @@ def _parse_float(value: str) -> Optional[float]:
         return None
 
 
+def _parse_int(value: str, default: int = 0) -> int:
+    if not value or value == "-":
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
 def parse_access_line(line: str) -> Optional[ParsedAccessEntry]:
     line = line.strip()
     if not line:
         return None
+
+    if line.startswith("{"):
+        payload = parse_proxy_json_line(line)
+        if payload:
+            method, path = _split_request(str(payload.get("request_method", "GET")) + " " + str(payload.get("request_uri", "/")))
+            request_time = _parse_float(str(payload.get("request_time", "")))
+            upstream_response_time = _parse_float(str(payload.get("upstream_response_time", "")))
+            return ParsedAccessEntry(
+                client_ip=str(payload.get("remote_addr", "")),
+                timestamp_raw=str(payload.get("time", "")),
+                host=str(payload.get("host", "-")),
+                method=method,
+                path=path,
+                status=int(payload.get("status", 0) or 0),
+                bytes_sent=int(payload.get("body_bytes_sent", 0) or 0),
+                request_time=request_time,
+                upstream_response_time=upstream_response_time,
+                upstream_addr=str(payload.get("upstream_addr", "") or "") or None,
+                user_agent=str(payload.get("http_user_agent", "") or "") or None,
+            )
 
     parts = line.split("|")
     if len(parts) >= 11:
@@ -87,11 +119,11 @@ def parse_access_line(line: str) -> Optional[ParsedAccessEntry]:
             host=host or "-",
             method=method,
             path=path,
-            status=int(status),
-            bytes_sent=int(bytes_sent),
-            bytes_in=int(bytes_in or 0),
-            upstream_bytes_in=int(upstream_bytes_in or 0),
-            upstream_bytes_out=int(upstream_bytes_out or 0),
+                status=_parse_int(status),
+                bytes_sent=_parse_int(bytes_sent),
+                bytes_in=_parse_int(bytes_in),
+                upstream_bytes_in=_parse_int(upstream_bytes_in),
+                upstream_bytes_out=_parse_int(upstream_bytes_out),
             forwarded_for=forwarded_for or None,
             user_agent=user_agent or None,
             request_time=request_time,

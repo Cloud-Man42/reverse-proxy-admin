@@ -10,6 +10,8 @@ DOMAIN_REGEX = re.compile(
 SLUG_REGEX = re.compile(r"^[a-z0-9-]+$")
 PATH_PREFIX_REGEX = re.compile(r"^/[a-zA-Z0-9/_-]*$")
 HEADER_NAME_REGEX = re.compile(r"^[A-Za-z0-9-]+$")
+TIMEOUT_REGEX = re.compile(r"^\d+[sm]?$")
+NGINX_VAR_REGEX = re.compile(r"^\$[a-zA-Z_][a-zA-Z0-9_]*$")
 INJECTION_PATTERNS = re.compile(r"[;\`\$\(\)\r\n<>]")
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 BLOCKED_EMAIL_DOMAINS = {"example.com", "example.org", "example.net", "localhost", "invalid", "test"}
@@ -73,9 +75,19 @@ def validate_header_name(value: str) -> str:
 
 
 def validate_header_value(value: str) -> str:
+    value = value.strip()
+    if NGINX_VAR_REGEX.match(value):
+        return value
     value = reject_injection(value)
     if len(value) > 1024:
         raise ValueError("Header value too long")
+    return value
+
+
+def validate_timeout(value: str) -> str:
+    value = reject_injection(value).strip()
+    if not TIMEOUT_REGEX.match(value):
+        raise ValueError("Timeout must be a number optionally followed by s or m")
     return value
 
 
@@ -106,3 +118,4 @@ SlugStr = Annotated[str, AfterValidator(validate_slug)]
 PathPrefixStr = Annotated[str, AfterValidator(validate_path_prefix)]
 IpStr = Annotated[str, AfterValidator(validate_ip)]
 PortInt = Annotated[int, Field(ge=1, le=65535)]
+TimeoutStr = Annotated[str, AfterValidator(validate_timeout)]

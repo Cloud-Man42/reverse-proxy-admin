@@ -1,0 +1,347 @@
+templates:
+- slug: proxmox-ve
+  name: Proxmox VE
+  description: Reverse proxy template for Proxmox VE.
+  group: infrastructure-virtualization
+  category: hypervisor
+  icon: app
+  tags: []
+  availability_level: enterprise
+  optimized: true
+  default_upstream_protocol: https
+  default_upstream_port: 8006
+  websocket_support: true
+  large_upload_support: false
+  recommended_client_max_body_size: null
+  recommended_proxy_read_timeout: 3600s
+  recommended_proxy_send_timeout: 3600s
+  recommended_proxy_connect_timeout: null
+  https_upstream_supported: true
+  http_to_https_redirect_default: true
+  recommended_headers:
+  - name: X-Forwarded-Proto
+    value: https
+  - name: Host
+    value: $host
+  security_headers: []
+  health_check_path: null
+  rate_limit_recommendation: null
+  notes: null
+  security_notes: Terminate TLS at the reverse proxy and proxy to HTTPS upstream on port 8006.
+  documentation_url: https://pve.proxmox.com/pve-docs/
+  long_description: null
+  slug_aliases:
+  - proxmox
+  hsts_recommended: true
+- slug: vmware-vcenter
+  name: VMware vCenter
+  description: Reverse proxy template for VMware vCenter.
+  group: infrastructure-virtualization
+  category: hypervisor
+  icon: app
+  tags: []
+  availability_level: enterprise
+  optimized: true
+  default_upstream_protocol: https
+  default_upstream_port: 443
+  websocket_support: true
+  large_upload_support: false
+  recommended_client_max_body_size: null
+  recommended_proxy_read_timeout: 3600s
+  recommended_proxy_send_timeout: 3600s
+  recommended_proxy_connect_timeout: null
+  https_upstream_supported: true
+  http_to_https_redirect_default: true
+  recommended_headers:
+  - name: X-Forwarded-Proto
+    value: https
+  - name: Host
+    value: $host
+  security_headers: []
+  health_check_path: null
+  rate_limit_recommendation: null
+  notes: null
+  security_notes: Use extended proxy timeouts and forwarded headers for VMware vCenter. Restrict admin access to trusted networks.
+  documentation_url: https://docs.vmware.com/en/VMware-vSphere/index.html
+  long_description: null
+  slug_aliases: []
+  hsts_recommended: true
+- slug: vmware-esxi
+  name: VMware ESXi
+  description: Reverse proxy template for VMware ESXi.
+  group: infrastructure-virtualization
+  category: hypervisor
+  icon: app
+  tags: []
+  availability_level: enterprise
+  optimized: false
+  default_upstream_protocol: https
+  default_upstream_port: 443
+  websocket_support: false
+  large_upload_support: false
+  recommended_client_max_body_size: null
+  recommended_proxy_read_timeout: null
+  recommended_proxy_send_timeout: null
+  recommended_proxy_connect_timeout: null
+  https_upstream_supported: true
+  http_to_https_redirect_default: true
+  recommended_headers: []
+  security_headers: []
+  health_check_path: null
+  rate_limit_recommendation: null
+  notes: null
+  security_notes: null
+  documentation_url: https://docs.vmware.com/en/VMware-vSphere/index.html
+  long_description: null
+  slug_aliases: []
+  hsts_recommended: false
+- slug: xcp-ng
+  name: XCP-ng
+  description: Reverse proxy template for XCP-ng.
+  group: infrastructure-virtualization
+  category: hypervisor
+  icon: app
+  tags: []
+  availability_level: enterprise
+  optimized: false
+  default_upstream_protocol: https
+  default_upstream_port: 443
+  websocket_support: false
+  large_upload_support: false
+  recommended_client_max_body_size: null
+  recommended_proxy_read_timeout: null
+  recommended_proxy_send_timeout: null
+  recommended_proxy_connect_timeout: null
+  https_upstream_supported: true
+  http_to_https_redirect_default: true
+  recommended_headers: []
+  security_headers: []
+  health_check_path: null
+  rate_limit_recommendation: null
+  notes: null
+  security_notes: null
+  documentation_url: https://xcp-ng.org/docs/
+  long_description: null
+  slug_aliases: []
+  hsts_recommended: false
+- slug: hyper-v-admin-center
+  name: Hyper-V Admin Center
+  description: Reverse proxy template for Hyper-V Admin Center.
+  group: infrastructure-virtualization
+  category: hypervisor
+  icon: app
+  tags: []
+  availability_level: enterprise
+  optimized: false
+  default_upstream_protocol: https
+  default_upstream_port: 6516
+  websocket_support: true
+  large_upload_support: false
+  recommended_client_max_body_size: null
+  recommended_proxy_read_timeout: null
+  recommended_proxy_send_timeout: null
+  recommended_proxy_connect_timeout: null
+  https_upstream_supported: true
+  http_to_https_redirect_default: true
+  recommended_headers: []
+  security_headers: []
+  health_check_path: null
+  rate_limit_recommendation: null
+  notes: null
+  security_notes: null
+  documentation_url: https://learn.microsoft.com/en-us/windows-server/manage/windows-admin-center/
+  long_description: null
+  slug_aliases: []
+  hsts_recommended: false
+- slug: portainer
+  name: Portainer
+  description: Reverse proxy template for Portainer.
+  group: infrastructure-virtualization
+  category: container-platform
+  icon: app
+  tags: []
+  availability_level: free
+  optimized: true
+  default_upstream_protocol: http
+  default_upstream_port: 9000
+  websocket_support: true
+  large_upload_support: false
+  recommended_client_max_body_size: null
+  recommended_proxy_read_timeout: 3600s
+  recommended_proxy_send_timeout: 3600s
+  recommended_proxy_connect_timeout: null
+  https_upstream_supported: false
+  http_to_https_redirect_default: true
+  recommended_headers:
+  - name: X-Forwarded-Proto
+    value: https
+  - name: Host
+    value: $host
+  security_headers: []
+  health_check_path: null
+  rate_limit_recommendation: null
+  notes: null
+  security_notes: Use extended proxy timeouts and forwarded headers for Portainer. Restrict admin access to trusted networks.
+  documentation_url: https://docs.portainer.io/
+  long_description: null
+  slug_aliases: []
+  hsts_recommended: true
+- slug: rancher
+  name: Rancher
+  description: Reverse proxy template for Rancher.
+  group: infrastructure-virtualization
+  category: container-platform
+  icon: app
+  tags: []
+  availability_level: enterprise
+  optimized: true
+  default_upstream_protocol: https
+  default_upstream_port: 443
+  websocket_support: true
+  large_upload_support: false
+  recommended_client_max_body_size: null
+  recommended_proxy_read_timeout: 3600s
+  recommended_proxy_send_timeout: 3600s
+  recommended_proxy_connect_timeout: null
+  https_upstream_supported: true
+  http_to_https_redirect_default: true
+  recommended_headers:
+  - name: X-Forwarded-Proto
+    value: https
+  - name: Host
+    value: $host
+  security_headers: []
+  health_check_path: null
+  rate_limit_recommendation: null
+  notes: null
+  security_notes: Use extended proxy timeouts and forwarded headers for Rancher. Restrict admin access to trusted networks.
+  documentation_url: https://ranchermanager.docs.rancher.com/
+  long_description: null
+  slug_aliases: []
+  hsts_recommended: true
+- slug: docker-registry
+  name: Docker Registry
+  description: Reverse proxy template for Docker Registry.
+  group: infrastructure-virtualization
+  category: registry
+  icon: app
+  tags: []
+  availability_level: free
+  optimized: false
+  default_upstream_protocol: http
+  default_upstream_port: 5000
+  websocket_support: false
+  large_upload_support: true
+  recommended_client_max_body_size: 1G
+  recommended_proxy_read_timeout: null
+  recommended_proxy_send_timeout: null
+  recommended_proxy_connect_timeout: null
+  https_upstream_supported: false
+  http_to_https_redirect_default: true
+  recommended_headers: []
+  security_headers: []
+  health_check_path: null
+  rate_limit_recommendation: null
+  notes: null
+  security_notes: null
+  documentation_url: https://distribution.github.io/distribution/
+  long_description: null
+  slug_aliases: []
+  hsts_recommended: false
+- slug: harbor
+  name: Harbor
+  description: Reverse proxy template for Harbor.
+  group: infrastructure-virtualization
+  category: registry
+  icon: app
+  tags:
+  - devops
+  availability_level: enterprise
+  optimized: true
+  default_upstream_protocol: https
+  default_upstream_port: 443
+  websocket_support: false
+  large_upload_support: true
+  recommended_client_max_body_size: 1G
+  recommended_proxy_read_timeout: 3600s
+  recommended_proxy_send_timeout: 3600s
+  recommended_proxy_connect_timeout: null
+  https_upstream_supported: true
+  http_to_https_redirect_default: true
+  recommended_headers:
+  - name: X-Forwarded-Proto
+    value: https
+  - name: Host
+    value: $host
+  security_headers: []
+  health_check_path: null
+  rate_limit_recommendation: null
+  notes: null
+  security_notes: Use extended proxy timeouts and forwarded headers for Harbor. Restrict admin access to trusted networks.
+  documentation_url: https://goharbor.io/docs/
+  long_description: null
+  slug_aliases: []
+  hsts_recommended: true
+- slug: kubernetes-dashboard
+  name: Kubernetes Dashboard
+  description: Reverse proxy template for Kubernetes Dashboard.
+  group: infrastructure-virtualization
+  category: orchestration
+  icon: app
+  tags: []
+  availability_level: free
+  optimized: false
+  default_upstream_protocol: https
+  default_upstream_port: 8443
+  websocket_support: true
+  large_upload_support: false
+  recommended_client_max_body_size: null
+  recommended_proxy_read_timeout: null
+  recommended_proxy_send_timeout: null
+  recommended_proxy_connect_timeout: null
+  https_upstream_supported: true
+  http_to_https_redirect_default: true
+  recommended_headers: []
+  security_headers: []
+  health_check_path: null
+  rate_limit_recommendation: null
+  notes: null
+  security_notes: null
+  documentation_url: https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/
+  long_description: null
+  slug_aliases: []
+  hsts_recommended: false
+- slug: argocd
+  name: ArgoCD
+  description: Reverse proxy template for ArgoCD.
+  group: infrastructure-virtualization
+  category: orchestration
+  icon: app
+  tags:
+  - devops
+  availability_level: enterprise
+  optimized: true
+  default_upstream_protocol: https
+  default_upstream_port: 443
+  websocket_support: true
+  large_upload_support: false
+  recommended_client_max_body_size: null
+  recommended_proxy_read_timeout: 3600s
+  recommended_proxy_send_timeout: 3600s
+  recommended_proxy_connect_timeout: null
+  https_upstream_supported: true
+  http_to_https_redirect_default: true
+  recommended_headers:
+  - name: X-Forwarded-Proto
+    value: https
+  - name: Host
+    value: $host
+  security_headers: []
+  health_check_path: null
+  rate_limit_recommendation: null
+  notes: null
+  security_notes: Use extended proxy timeouts and forwarded headers for ArgoCD. Restrict admin access to trusted networks.
+  documentation_url: https://argo-cd.readthedocs.io/
+  long_description: null
+  slug_aliases: []
+  hsts_recommended: true

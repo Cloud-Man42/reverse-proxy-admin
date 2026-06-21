@@ -10,7 +10,7 @@ import { ConfigHistoryPanel } from "./ConfigHistoryPage";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { toPayload } from "../lib/proxyPayload";
-import { ProxyFormData, ProxyRateLimitSettings, ProxyRouteFormData, ProxyTemplate, TrafficFlowTestResult, defaultRateLimit } from "../types";
+import { ProxyFormData, ProxyRateLimitSettings, ProxyRouteFormData, TrafficFlowTestResult, defaultRateLimit } from "../types";
 
 const FLOW_CHECK_LABELS: Record<string, string> = {
   input_validation: "Input validation",
@@ -42,32 +42,9 @@ const emptyForm: ProxyFormData = {
   force_https: false,
   enabled: true,
   notes: "",
+  enhanced_analytics_logging: false,
   rate_limit: defaultRateLimit(),
 };
-
-function applyTemplateDefaults(form: ProxyFormData, template: ProxyTemplate): ProxyFormData {
-  const defaults = template.defaults || {};
-  const routes =
-    defaults.routes && defaults.routes.length
-      ? defaults.routes.map((route) => ({
-          path_prefix: route.path_prefix || "/",
-          target_protocol: route.target_protocol || "http",
-          target_host: route.target_host || "",
-          target_port: route.target_port || 8080,
-          websocket_enabled: Boolean(route.websocket_enabled),
-          use_pool: false,
-          backend_pool_id: null,
-        }))
-      : form.routes;
-  return {
-    ...form,
-    routes,
-    force_https: defaults.force_https ?? form.force_https,
-    max_body_size: defaults.max_body_size ?? form.max_body_size,
-    enabled: defaults.enabled ?? form.enabled,
-    notes: defaults.notes ?? form.notes,
-  };
-}
 
 export function ProxyFormPage() {
   const { id } = useParams();
@@ -83,6 +60,12 @@ export function ProxyFormPage() {
   const [flowResult, setFlowResult] = useState<TrafficFlowTestResult | null>(null);
   const [testingFlow, setTestingFlow] = useState(false);
 
+  useEffect(() => {
+    if (!isEdit && templateSlug) {
+      navigate(`/templates/${encodeURIComponent(templateSlug)}/wizard?step=3`, { replace: true });
+    }
+  }, [isEdit, templateSlug, navigate]);
+
   const { data } = useQuery({
     queryKey: ["proxy", id],
     queryFn: () => api.getProxy(id!),
@@ -92,12 +75,6 @@ export function ProxyFormPage() {
   const { data: backendPools = [] } = useQuery({
     queryKey: ["backend-pools", id ?? form.name],
     queryFn: () => api.listBackendPools(isEdit ? id : undefined),
-  });
-
-  const { data: templateData } = useQuery({
-    queryKey: ["template", templateSlug],
-    queryFn: () => api.getTemplate(templateSlug!),
-    enabled: !isEdit && Boolean(templateSlug),
   });
 
   useEffect(() => {
@@ -124,16 +101,11 @@ export function ProxyFormPage() {
         force_https: data.force_https,
         enabled: data.enabled,
         notes: data.notes || "",
+        enhanced_analytics_logging: data.enhanced_analytics_logging ?? false,
         rate_limit: data.rate_limit ?? defaultRateLimit(),
       });
     }
   }, [data]);
-
-  useEffect(() => {
-    if (!isEdit && templateData) {
-      setForm((current) => applyTemplateDefaults(current, templateData));
-    }
-  }, [isEdit, templateData]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -240,12 +212,6 @@ export function ProxyFormPage() {
             Config history
           </button>
         </div>
-      ) : null}
-
-      {!isEdit && templateData ? (
-        <p className="text-sm text-white/60">
-          Using template: <span className="font-medium text-white">{templateData.name}</span>
-        </p>
       ) : null}
 
       {isEdit && activeTab === "history" && id ? <ConfigHistoryPanel proxyId={id} /> : null}
@@ -419,6 +385,13 @@ export function ProxyFormPage() {
               placeholder="Internal notes about this proxy (not written to nginx config)"
             />
           </div>
+
+          <Checkbox
+            labelClassName="md:col-span-2"
+            checked={form.enhanced_analytics_logging}
+            onChange={(checked) => update("enhanced_analytics_logging", checked)}
+            label="Enhanced JSON analytics logging (proxy_json format)"
+          />
 
           <Checkbox
             labelClassName="md:col-span-2"

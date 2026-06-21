@@ -55,7 +55,7 @@ export function TrafficDebugPanel({ proxyId, domains, title = "Inbound traffic d
               <select
                 value={lines}
                 onChange={(e) => setLines(Number(e.target.value))}
-                className="rounded bg-black/20 px-2 py-1"
+                className="w-auto px-2 py-1"
               >
                 <option value={50}>50</option>
                 <option value={100}>100</option>
