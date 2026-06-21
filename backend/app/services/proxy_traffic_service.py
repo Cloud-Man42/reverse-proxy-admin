@@ -277,6 +277,11 @@ class ProxyTrafficService:
             return now - timedelta(days=30)
         return now - timedelta(hours=24)
 
+    def _aggregate_period_type(self, range_key: str) -> str:
+        if range_key in ("15m", "1h"):
+            return "minute"
+        return "hour"
+
     def _range_seconds(self, range_key: str) -> float:
         if range_key == "15m":
             return 15 * 60
@@ -290,6 +295,7 @@ class ProxyTrafficService:
 
     def _sum_aggregates(self, proxy_id: str, range_key: str) -> dict:
         start = self._range_start(range_key)
+        period_type = self._aggregate_period_type(range_key)
         row = (
             self.db.query(
                 func.coalesce(func.sum(ProxyTrafficAggregate.requests), 0),
@@ -305,6 +311,7 @@ class ProxyTrafficService:
             .filter(
                 ProxyTrafficAggregate.proxy_id == proxy_id,
                 ProxyTrafficAggregate.period_start >= start,
+                ProxyTrafficAggregate.period_type == period_type,
             )
             .one()
         )
@@ -323,6 +330,7 @@ class ProxyTrafficService:
             .filter(
                 ProxyTrafficAggregate.proxy_id == proxy_id,
                 ProxyTrafficAggregate.period_start >= start,
+                ProxyTrafficAggregate.period_type == period_type,
             )
             .one()
         )
@@ -343,11 +351,13 @@ class ProxyTrafficService:
 
     def _merge_top_json(self, proxy_id: str, range_key: str, field: str) -> dict[str, int]:
         start = self._range_start(range_key)
+        period_type = self._aggregate_period_type(range_key)
         rows = (
             self.db.query(getattr(ProxyTrafficAggregate, field))
             .filter(
                 ProxyTrafficAggregate.proxy_id == proxy_id,
                 ProxyTrafficAggregate.period_start >= start,
+                ProxyTrafficAggregate.period_type == period_type,
             )
             .all()
         )
@@ -412,11 +422,13 @@ class ProxyTrafficService:
 
     def _history_points(self, proxy_id: str, range_key: str) -> list[ProxyTrafficHistoryPoint]:
         start = self._range_start(range_key)
+        period_type = self._aggregate_period_type(range_key)
         rows = (
             self.db.query(ProxyTrafficAggregate)
             .filter(
                 ProxyTrafficAggregate.proxy_id == proxy_id,
                 ProxyTrafficAggregate.period_start >= start,
+                ProxyTrafficAggregate.period_type == period_type,
             )
             .order_by(ProxyTrafficAggregate.period_start.asc())
             .all()
@@ -433,12 +445,16 @@ class ProxyTrafficService:
 
     def total_bytes(self, range_key: str = "24h") -> tuple[int, int]:
         start = self._range_start(range_key)
+        period_type = self._aggregate_period_type(range_key)
         row = (
             self.db.query(
                 func.coalesce(func.sum(ProxyTrafficAggregate.bytes_in), 0),
                 func.coalesce(func.sum(ProxyTrafficAggregate.bytes_out), 0),
             )
-            .filter(ProxyTrafficAggregate.period_start >= start)
+            .filter(
+                ProxyTrafficAggregate.period_start >= start,
+                ProxyTrafficAggregate.period_type == period_type,
+            )
             .one()
         )
         return int(row[0]), int(row[1])
@@ -472,6 +488,7 @@ class ProxyTrafficService:
 
     def list_summary(self, range_key: str = "24h") -> list[ProxyTrafficSummary]:
         start = self._range_start(range_key)
+        period_type = self._aggregate_period_type(range_key)
         rows = (
             self.db.query(
                 ProxyTrafficAggregate.proxy_id,
@@ -479,7 +496,10 @@ class ProxyTrafficService:
                 func.coalesce(func.sum(ProxyTrafficAggregate.bytes_in), 0),
                 func.coalesce(func.sum(ProxyTrafficAggregate.bytes_out), 0),
             )
-            .filter(ProxyTrafficAggregate.period_start >= start)
+            .filter(
+                ProxyTrafficAggregate.period_start >= start,
+                ProxyTrafficAggregate.period_type == period_type,
+            )
             .group_by(ProxyTrafficAggregate.proxy_id)
             .all()
         )
@@ -502,6 +522,7 @@ class ProxyTrafficService:
 
     def list_analytics_summary(self, range_key: str = "24h") -> list[dict]:
         start = self._range_start(range_key)
+        period_type = self._aggregate_period_type(range_key)
         rows = (
             self.db.query(
                 ProxyTrafficAggregate.proxy_id,
@@ -521,7 +542,10 @@ class ProxyTrafficService:
                     0.0,
                 ),
             )
-            .filter(ProxyTrafficAggregate.period_start >= start)
+            .filter(
+                ProxyTrafficAggregate.period_start >= start,
+                ProxyTrafficAggregate.period_type == period_type,
+            )
             .group_by(ProxyTrafficAggregate.proxy_id)
             .all()
         )

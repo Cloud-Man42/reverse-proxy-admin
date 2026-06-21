@@ -45,8 +45,10 @@ class MetricsService:
 
     def _aggregate_query(self, range_key: str, proxy_id: str | None = None):
         time_range = resolve_range(range_key)
+        period_type = "minute" if range_key in ("15m", "1h") else "hour"
         query = self.db.query(ProxyTrafficAggregate).filter(
-            ProxyTrafficAggregate.period_start >= time_range.start
+            ProxyTrafficAggregate.period_start >= time_range.start,
+            ProxyTrafficAggregate.period_type == period_type,
         )
         if proxy_id:
             query = query.filter(ProxyTrafficAggregate.proxy_id == proxy_id)

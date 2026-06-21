@@ -1,4 +1,5 @@
 from unittest.mock import patch
+from uuid import uuid4
 
 from app.services.catalog_service import CatalogService
 from app.services.nginx_ops import NginxOps
@@ -41,11 +42,13 @@ def test_create_proxy_from_template_success(_enable, _test, _reload, _cert, clie
     catalog = CatalogService(temp_settings)
     template = catalog.get_template("grafana")
     assert template is not None
+    proxy_name = f"grafana-{uuid4().hex[:8]}"
     payload = TemplateCreateProxyRequest(
-        name="grafana-test",
-        domain="grafana-test.example.com",
+        name=proxy_name,
+        domain=f"{proxy_name}.example.com",
         upstream_host="127.0.0.1",
         upstream_port=3000,
+        force_https=False,
     )
     response = client.post(
         f"/api/templates/{template.slug}/create-proxy",
@@ -55,8 +58,8 @@ def test_create_proxy_from_template_success(_enable, _test, _reload, _cert, clie
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["success"] is True
-    assert data["proxy"]["name"] == "grafana-test"
+    assert data["success"] is True, data.get("message", data)
+    assert data["proxy"]["name"] == proxy_name
 
 
 @patch("app.services.proxy_service.certificate_exists", return_value=True)
@@ -67,11 +70,13 @@ def test_create_proxy_from_template_rolls_back_on_nginx_test_failure(_enable, _t
     catalog = CatalogService(temp_settings)
     template = catalog.get_template("grafana")
     assert template is not None
+    proxy_name = f"grafana-fail-{uuid4().hex[:8]}"
     payload = TemplateCreateProxyRequest(
-        name="grafana-fail",
-        domain="grafana-fail.example.com",
+        name=proxy_name,
+        domain=f"{proxy_name}.example.com",
         upstream_host="127.0.0.1",
         upstream_port=3000,
+        force_https=False,
     )
     response = client.post(
         f"/api/templates/{template.slug}/create-proxy",
